@@ -344,7 +344,8 @@ lemma decay_bounds_key (f : W21) (u : ℝ) : ‖𝓕 f u‖ ≤ ‖f‖ * (1 + u
   have l3 : ‖1 / ((4 : ℂ) * ↑π ^ 2)‖ ≤ (4 * π ^ 2)⁻¹ := by simp
   have key := fourierIntegral_self_add_deriv_deriv f u
   simp only [Function.iterate_succ _ 1, Function.iterate_one, Function.comp_apply] at key
-  rw [F_sub f.hf (f.hf''.const_mul (1 / (4 * ↑π ^ 2)))] at key
+  have := F_sub f.integrable' (f.deriv.deriv.integrable'.const_mul (1 / (4 * ↑π ^ 2)))
+  simp only [W1.deriv] at this ; rw [this] at key
   rw [← div_eq_mul_inv, le_div_iff l1, mul_comm, l2, ← norm_mul, key, sub_eq_add_neg]
   apply norm_add_le _ _ |>.trans
   change _ ≤ W21.norm _
@@ -389,7 +390,7 @@ lemma decay_bounds_cor (ψ : W21) :
   simpa only [div_eq_mul_inv] using ⟨_, decay_bounds_key ψ⟩
 
 @[continuity] lemma continuous_FourierIntegral (ψ : W21) : Continuous (𝓕 ψ) :=
-  VectorFourier.fourierIntegral_continuous continuous_fourierChar (by exact continuous_mul) ψ.hf
+  VectorFourier.fourierIntegral_continuous continuous_fourierChar (by exact continuous_mul) ψ.integrable'
 
 lemma W21.integrable_fourier (ψ : W21) (hc : c ≠ 0) :
     Integrable fun u ↦ 𝓕 ψ (u / c) := by
@@ -1546,8 +1547,8 @@ lemma limiting_cor_W21 (ψ : W21) (hf : ∀ (σ' : ℝ), 1 < σ' → Summable (n
       refine (Continuous.mul ?_ continuous_const).neg.cexp.aestronglyMeasurable
       apply continuous_const.mul <| contDiff_ofReal.continuous.mul continuous_const
     simp [Real.fourierIntegral_eq', mul_sub] ; apply integral_sub
-    · apply ψ.hf.bdd_mul l1 ; use 1 ; simp [Complex.norm_eq_abs, Complex.abs_exp]
-    · apply (Ψ R : W21) |>.hf |>.bdd_mul l1
+    · apply ψ.integrable'.bdd_mul l1 ; use 1 ; simp [Complex.norm_eq_abs, Complex.abs_exp]
+    · apply (Ψ R : W21) |>.integrable' |>.bdd_mul l1
       use 1 ; simp [Complex.norm_eq_abs, Complex.abs_exp]
 
   have S1_sub : S1 x (ψ - Ψ R) = S1 x ψ - S1 x (Ψ R) := by
@@ -1562,7 +1563,7 @@ lemma limiting_cor_W21 (ψ : W21) (hf : ∀ (σ' : ℝ), 1 < σ' → Summable (n
   have S2_sub : S2 x (ψ - Ψ R) = S2 x ψ - S2 x (Ψ R) := by
     simp [S2, S1_sub_1] ; rw [integral_sub] ; ring
     · exact ψ.integrable_fourier (by positivity) |>.restrict
-    · exact (Ψ R : W21).integrable_fourier (by positivity) |>.restrict
+    · exact W21.integrable_fourier (Ψ R) (by positivity) |>.restrict
 
   have S_sub : S x (ψ - Ψ R) = S x ψ - S x (Ψ R) := by simp [S, S1_sub, S2_sub] ; ring
   simpa [S_sub, Ψ] using norm_add_le _ _ |>.trans_lt (_root_.add_lt_add key3 key)
