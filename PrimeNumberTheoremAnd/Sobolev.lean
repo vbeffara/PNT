@@ -4,6 +4,9 @@ import Mathlib.Order.Filter.ZeroAndBoundedAtFilter
 
 open Real Complex MeasureTheory Filter Topology BoundedContinuousFunction SchwartzMap  BigOperators
 
+attribute [fun_prop] Integrable Integrable.norm Integrable.const_mul Integrable.add
+attribute [fun_prop] AEStronglyMeasurable Continuous.aestronglyMeasurable
+
 variable {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E] {n : ℕ}
 
 @[ext] structure CS (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] where
@@ -47,6 +50,10 @@ instance : CoeFun (CS n E) (fun _ => ℝ → E) where coe := CS.toFun
 instance : Coe (CS n ℝ) (CS n ℂ) where coe f := ⟨fun x => f x,
   contDiff_ofReal.of_le le_top |>.comp f.h1, f.h2.comp_left (g := ofReal') rfl⟩
 
+def of_le (f : CS n E) {m : ℕ} (hm : m ≤ n) : CS m E := ⟨f, f.h1.of_le (by simp [hm]), f.h2⟩
+
+instance {k : ℕ} : CoeOut (CS (n + k) E) (CS n E) where coe f := f.of_le (by simp)
+
 def neg (f : CS n E) : CS n E where
   toFun := -f
   h1 := f.h1.neg
@@ -62,7 +69,7 @@ instance : HSMul ℝ (CS n E) (CS n E) where hSMul := smul
 
 @[simp] lemma smul_apply : (R • f) x = R • f x := rfl
 
-lemma continuous (f : CS n E) : Continuous f := f.h1.continuous
+@[continuity, fun_prop] lemma continuous (f : CS n E) : Continuous f := f.h1.continuous
 
 noncomputable def deriv (f : CS (n + 1) E) : CS n E where
   toFun := _root_.deriv f
@@ -103,7 +110,17 @@ lemma tendsto_scale (f : CS n E) (x : ℝ) : Tendsto (fun R => f.scale R x) atTo
 
 lemma bounded : ∃ C, ∀ v, ‖f v‖ ≤ C := by
   obtain ⟨x, hx⟩ := (continuous_norm.comp f.continuous).exists_forall_ge_of_hasCompactSupport f.h2.norm
-  exact ⟨_, hx⟩
+  refine ⟨_, hx⟩
+
+lemma integrable (f : CS n E) : Integrable f := f.h1.continuous.integrable_of_hasCompactSupport f.h2
+
+lemma integrable_iteratedDeriv {n : ℕ} (f : CS n E) : Integrable (iteratedDeriv n f) := by
+  induction n with
+  | zero => exact f.integrable
+  | succ n ih => simpa [iteratedDeriv_succ'] using ih f.deriv
+
+lemma integrable_iteratedDeriv_of_le {n : ℕ} (f : CS n E) ⦃k : ℕ⦄ (hk : k ≤ n) : Integrable (iteratedDeriv k f) := by
+  obtain ⟨m, rfl⟩ := Nat.le.dest hk ; exact (f : CS k E).integrable_iteratedDeriv
 
 end CS
 
@@ -129,7 +146,9 @@ namespace W1
 
 instance : CoeFun (W1 n E) (fun _ => ℝ → E) where coe := W1.toFun
 
-lemma continuous (f : W1 n E) : Continuous f := f.smooth.continuous
+@[fun_prop] lemma integrable' (f : W1 n E) : Integrable f := f.integrable (zero_le n)
+
+@[fun_prop, continuity] lemma continuous (f : W1 n E) : Continuous f := f.smooth.continuous
 
 lemma differentiable (f : W1 (n + 1) E) : Differentiable ℝ f :=
   f.smooth.differentiable (by simp)
@@ -176,6 +195,8 @@ def of_Schwartz (f : 𝓢(ℝ, ℂ)) : W1 n ℂ where
   smooth := f.smooth n
   integrable _ _ := integrable_iteratedDeriv_Schwarz
 
+instance : Coe (CS n E) (W1 n E) where coe f := ⟨f, f.h1, f.integrable_iteratedDeriv_of_le⟩
+
 end W1
 
 namespace W21
@@ -193,140 +214,127 @@ noncomputable instance : Norm W21 where norm := norm ∘ W1.toFun
 
 noncomputable instance : Coe 𝓢(ℝ, ℂ) W21 where coe := W1.of_Schwartz
 
-def ofCS2 (f : CS 2 ℂ) : W21 := by
-  refine ⟨f, f.h1, fun k hk => ?_⟩ ; match k with
-  | 0 => exact f.h1.continuous.integrable_of_hasCompactSupport f.h2
-  | 1 => simpa using (f.h1.continuous_deriv one_le_two).integrable_of_hasCompactSupport f.h2.deriv
-  | 2 => simpa [iteratedDeriv_succ] using
-    (f.h1.iterate_deriv' 0 2).continuous.integrable_of_hasCompactSupport f.h2.deriv.deriv
-
-instance : Coe (CS 2 ℂ) W21 where coe := ofCS2
+instance : Coe (CS 2 ℂ) W21 where coe := fun f => f
 
 instance : HMul (CS 2 ℂ) W21 (CS 2 ℂ) where hMul g f := ⟨g * f, g.h1.mul f.smooth, g.h2.mul_right⟩
 
 instance : HMul (CS 2 ℝ) W21 (CS 2 ℂ) where hMul g f := (g : CS 2 ℂ) * f
 
-lemma hf (f : W21) : Integrable f := f.integrable zero_le_two
-
-lemma hf' (f : W21) : Integrable (deriv f) := by simpa [iteratedDeriv_succ] using f.integrable one_le_two
-
-lemma hf'' (f : W21) : Integrable (deriv (deriv f))  := by simpa [iteratedDeriv_succ] using f.integrable le_rfl
-
 end W21
+
+lemma approx_aux1 {f : ℝ → E} {g : ℝ → ℝ} (h1 : Integrable f) (h2 : ∀ x, |g x| ≤ 1)
+    (h3 : Continuous g) (h4 : g 0 = 1) :
+    Tendsto (fun R => ∫ x, funscale g R x • f x) atTop (𝓝 (∫ x, f x)) := by
+
+  let F R x : E := funscale g R x • f x
+  have l1 : ∀ᶠ R in atTop, AEStronglyMeasurable (F R) := by
+    apply eventually_of_forall ; intro R
+    exact (h3.comp (by continuity)).aestronglyMeasurable.smul h1.1
+  have l2 : ∀ᶠ R in atTop, ∀ᵐ x, ‖F R x‖ ≤ ‖f x‖ := by
+    apply eventually_of_forall ; intro R ; apply eventually_of_forall ; intro x
+    simp [F, funscale, norm_smul]
+    convert_to _ ≤ 1 * ‖f x‖ ; simp
+    have := h2 (R⁻¹ * x) ; gcongr
+  have l4 : ∀ᵐ x, Tendsto (fun n ↦ F n x) atTop (𝓝 (f x)) := by
+    apply eventually_of_forall ; intro x
+    simpa [h4] using (tendsto_funscale h3.continuousAt x).smul_const (f x)
+  exact tendsto_integral_filter_of_dominated_convergence _ l1 l2 h1.norm l4
+
+lemma approx_aux2 {f : ℝ → E} {g : ℝ → ℝ} (h1 : Integrable f)
+    (h2 : ∀ x, g x ≤ 1) (h2' : ∀ x, 0 ≤ g x) (h3 : Continuous g) (h4 : g 0 = 1) :
+    Tendsto (fun R => ∫ x, ‖(1 - funscale g R x) • f x‖) atTop (𝓝 0) := by
+
+  let F R x : ℝ := ‖(1 - funscale g R x) • f x‖
+  have l1 : ∀ᶠ R in atTop, AEStronglyMeasurable (F R) := by
+    apply eventually_of_forall ; intro R
+    exact ((aestronglyMeasurable_const.sub ((h3.comp (by continuity)).aestronglyMeasurable)).smul h1.1).norm
+  have l2 : ∀ᶠ R in atTop, ∀ᵐ x, ‖F R x‖ ≤ ‖f x‖ := by
+    apply eventually_of_forall ; intro R ; apply eventually_of_forall ; intro x
+    convert_to |1 - g (R⁻¹ * x)| * ‖f x‖ ≤ 1 * ‖f x‖ ; simp [F, funscale, norm_smul] ; simp
+    gcongr ; rw [abs_le] ; constructor <;> linarith [h2 (R⁻¹ * x), h2' (R⁻¹ * x)]
+  have l4 : ∀ᵐ x, Tendsto (fun n ↦ F n x) atTop (𝓝 0) := by
+    apply eventually_of_forall ; intro x
+    simpa [h4] using tendsto_funscale h3.continuousAt x |>.const_sub 1 |>.smul_const (f x) |>.norm
+  simpa [F] using tendsto_integral_filter_of_dominated_convergence _ l1 l2 h1.norm l4
 
 theorem W21_approximation (f : W21) (g : trunc) :
     Tendsto (fun R => ‖f - (g.scale R * f : W21)‖) atTop (𝓝 0) := by
+
+  -- Setup
+  let h R v := 1 - g.scale R v
+  convert_to Tendsto (fun R => W21.norm (fun v => h R v * f v)) atTop (𝓝 0)
+  · ext R ; change W21.norm _ = _ ; congr ; ext v ; simp [h, sub_mul] ; rfl
+
+  -- Take care of the first piece
+  rw [show (0 : ℝ) = 0 + ((4 * π ^ 2)⁻¹ : ℝ) * 0 by simp]
+  have piece_1 : Tendsto (fun R ↦ ∫ v, ‖h R v * f v‖) atTop (𝓝 0) := by
+    apply approx_aux2 f.integrable' g.le_one g.nonneg g.continuous g.zero_at |>.congr'
+    filter_upwards [eventually_ne_atTop 0] with R hR ; simp [h, CS.scale, hR]
+  refine piece_1.add (Tendsto.const_mul _ ?_) ; clear piece_1
 
   -- Definitions
   let f' := f.deriv
   let f'' := f'.deriv
   let g' := (g : CS 2 ℝ).deriv
   let g'' := g'.deriv
-  let h R v := 1 - g.scale R v
   let h' R := - (g.scale R).deriv
   let h'' R := - (g.scale R).deriv.deriv
+  let F R v := ‖h'' R v * f v + 2 * h' R v * f' v + h R v * f'' v‖
 
   -- Properties of h
-  have ch {R} : Continuous (fun v => (h R v : ℂ)) := continuous_ofReal.comp <| continuous_const.sub (CS.continuous _)
-  have ch' {R} : Continuous (fun v => (h' R v : ℂ)) := continuous_ofReal.comp (CS.continuous _)
-  have ch'' {R} : Continuous (fun v => (h'' R v : ℂ)) := continuous_ofReal.comp (CS.continuous _)
-  have dh R v : HasDerivAt (h R) (h' R v) v := by
-    convert CS.hasDerivAt_scale (g : CS 2 ℝ) R v |>.const_sub 1 using 1
-    simp [h', CS.deriv_scale'] ; left ; rfl
-  have dh' R v : HasDerivAt (h' R) (h'' R v) v := ((g.scale R).deriv.hasDerivAt v).neg
   have hh1 R v : |h R v| ≤ 1 := by
     by_cases hR : R = 0 <;> simp [h, hR, CS.scale, funscale] ; rw [abs_le] ; constructor <;>
     linarith [g.le_one (R⁻¹ * v), g.nonneg (R⁻¹ * v)]
-  have vR v : Tendsto (fun R : ℝ => v * R⁻¹) atTop (𝓝 0) := by simpa using tendsto_inv_atTop_zero.const_mul v
 
   -- Proof
-  convert_to Tendsto (fun R => W21.norm (fun v => h R v * f v)) atTop (𝓝 0)
-  · ext R ; change W21.norm _ = _ ; congr ; ext v ; simp [h, sub_mul] ; rfl
-  rw [show (0 : ℝ) = 0 + ((4 * π ^ 2)⁻¹ : ℝ) * 0 by simp]
-  refine Tendsto.add ?_ (Tendsto.const_mul _ ?_)
+  convert_to Tendsto (fun R ↦ ∫ (v : ℝ), F R v) atTop (𝓝 0)
+  · ext R ; congr ; ext v ; congr ; apply HasDerivAt.deriv
+    have dh v : HasDerivAt (h R) (h' R v) v := by
+      convert CS.hasDerivAt_scale (g : CS 2 ℝ) R v |>.const_sub 1 using 1
+      simp [h', CS.deriv_scale'] ; left ; rfl
+    have dh' : HasDerivAt (h' R : CS 1 ℂ) (h'' R v) v := ((g.scale R).deriv.hasDerivAt v).neg.ofReal_comp
+    have l3 v := (dh v).ofReal_comp.mul (f.hasDerivAt v)
+    have l5 := dh'.mul (f.hasDerivAt v)
+    have l7 := (dh v).ofReal_comp.mul (f'.hasDerivAt v)
+    have d1 : deriv _ = _ := funext (fun v => (l3 v).deriv)
+    convert (l5.add l7) using 1 ; ring
 
-  · let F R v := ‖h R v * f v‖
-    have eh v : ∀ᶠ R in atTop, h R v = 0 := by
-      filter_upwards [(vR v).eventually g.zero, eventually_ne_atTop 0] with R hR hR'
-      simp [h, hR, CS.scale, hR', funscale, mul_comm R⁻¹]
-    have e1 : ∀ᶠ (n : ℝ) in atTop, AEStronglyMeasurable (F n) volume := by
-      apply eventually_of_forall ; intro R
-      exact (ch.mul f.continuous).norm.aestronglyMeasurable
-    have e2 : ∀ᶠ (n : ℝ) in atTop, ∀ᵐ (a : ℝ), ‖F n a‖ ≤ ‖f a‖ := by
-      apply eventually_of_forall ; intro R
-      apply eventually_of_forall ; intro v
-      simpa [F] using mul_le_mul (hh1 R v) le_rfl (by simp) zero_le_one
-    have e4 : ∀ᵐ (a : ℝ), Tendsto (fun n ↦ F n a) atTop (𝓝 0) := by
-      apply eventually_of_forall ; intro v
-      apply tendsto_nhds_of_eventually_eq ; filter_upwards [eh v] with R hR ; simp [F, hR]
-    simpa [F] using tendsto_integral_filter_of_dominated_convergence _ e1 e2 f.hf.norm e4
+  obtain ⟨c1, mg'⟩ := g'.bounded ; obtain ⟨c2, mg''⟩ := g''.bounded
+  let bound v := c2 * ‖f v‖ + 2 * c1 * ‖f' v‖ + ‖f'' v‖
 
-  · let F R v := ‖h'' R v * f v + 2 * h' R v * f' v + h R v * f'' v‖
-    convert_to Tendsto (fun R ↦ ∫ (v : ℝ), F R v) atTop (𝓝 0)
-    · have this R v : deriv (deriv (fun v => h R v * f v)) v = h'' R v * f v + 2 * h' R v * f' v + h R v * f'' v := by
-        have df v : HasDerivAt f (f' v) v := f.hasDerivAt v
-        have df' v : HasDerivAt f' (f'' v) v := f'.hasDerivAt v
-        have l3 v : HasDerivAt (fun v => h R v * f v) (h' R v * f v + h R v * f' v) v :=
-          (dh R v).ofReal_comp.mul (df v)
-        have l5 : HasDerivAt (fun v => h' R v * f v) (h'' R v * f v + h' R v * f' v) v :=
-          (dh' R v).ofReal_comp.mul (df v)
-        have l7 : HasDerivAt (fun v => h R v * f' v) (h' R v * f' v + h R v * f'' v) v :=
-          (dh R v).ofReal_comp.mul (df' v)
-        have d1 : deriv (fun v => h R v * f v) = fun v => h' R v * f v + h R v * f' v :=
-          funext (fun v => (l3 v).deriv)
-        rw [d1] ; convert (l5.add l7).deriv using 1 ; ring
-      simp_rw [this]
+  have e1 : ∀ᶠ (n : ℝ) in atTop, AEStronglyMeasurable (F n) volume := by
+    apply eventually_of_forall ; intro R ; apply Continuous.aestronglyMeasurable ; fun_prop
 
-    obtain ⟨c1, mg'⟩ := g'.bounded
-    obtain ⟨c2, mg''⟩ := g''.bounded
-    let bound v := c2 * ‖f v‖ + 2 * c1 * ‖f' v‖ + ‖f'' v‖
-    have e1 : ∀ᶠ (n : ℝ) in atTop, AEStronglyMeasurable (F n) volume := by
-      apply eventually_of_forall ; intro R ; apply (Continuous.norm ?_).aestronglyMeasurable
-      exact ((ch''.mul f.continuous).add ((continuous_const.mul ch').mul f.deriv.continuous)).add
-        (ch.mul f.deriv.deriv.continuous)
-    have e2 : ∀ᶠ R in atTop, ∀ᵐ (a : ℝ), ‖F R a‖ ≤ bound a := by
-      have hc1 : ∀ᶠ R in atTop, ∀ v, |h' R v| ≤ c1 := by
-        filter_upwards [eventually_ge_atTop 1] with R hR v
-        have hR' : R ≠ 0 := by linarith
-        have : 0 ≤ R := by linarith
-        simp [h', CS.deriv_scale, abs_mul, abs_inv, abs_eq_self.mpr this] ; simp [CS.scale, funscale, hR']
-        convert_to _ ≤ c1 * 1 ; simp ; rw [mul_comm]
-        apply mul_le_mul (mg' _) (inv_le_of_inv_le (by linarith) (by simpa using hR)) (by positivity)
-        exact (abs_nonneg _).trans (mg' 0)
-      have hc2 : ∀ᶠ R in atTop, ∀ v, |h'' R v| ≤ c2 := by
-        filter_upwards [eventually_ge_atTop 1] with R hR v
-        have e1 : 0 ≤ R := by linarith
-        have e2 : R⁻¹ ≤ 1 := inv_le_of_inv_le (by linarith) (by simpa using hR)
-        have e3 : R ≠ 0 := by linarith
-        simp [h'', CS.deriv_scale, CS.deriv_smul, abs_mul, abs_inv, abs_eq_self.mpr e1]
-        convert_to _ ≤ 1 * (1 * c2) ; simp
-        apply mul_le_mul e2 ?_ (by positivity) zero_le_one
-        apply mul_le_mul e2 ?_ (by positivity) zero_le_one
-        simp [CS.scale, e3, funscale] ; apply mg''
-      filter_upwards [hc1, hc2] with R hc1 hc2
-      apply eventually_of_forall ; intro v ; specialize hc1 v ; specialize hc2 v
-      simp only [F, bound, norm_norm]
-      refine (norm_add_le _ _).trans ?_ ; apply add_le_add
-      · refine (norm_add_le _ _).trans ?_ ; apply add_le_add <;> simp <;> gcongr
-      · simpa using mul_le_mul (hh1 R v) le_rfl (by simp) zero_le_one
-    have e3 : Integrable bound volume := (((f.hf.norm).const_mul _).add ((f.hf'.norm).const_mul _)).add f.hf''.norm
-    have e4 : ∀ᵐ (a : ℝ), Tendsto (fun n ↦ F n a) atTop (𝓝 0) := by
-      apply eventually_of_forall ; intro v
-      have evg' : g' =ᶠ[𝓝 0] 0 := by convert ← g.zero.deriv ; exact deriv_const' _
-      have evg'' : g'' =ᶠ[𝓝 0] 0 := by convert ← evg'.deriv ; exact deriv_const' _
-      refine tendsto_norm_zero.comp <| (ZeroAtFilter.add ?_ ?_).add ?_
-      · have eh'' v : ∀ᶠ R in atTop, h'' R v = 0 := by
-          filter_upwards [(vR v).eventually evg'', eventually_ne_atTop 0] with R hR hR'
-          simp [h'', CS.deriv_scale, CS.deriv_smul, hR, hR']
-          simp [CS.scale, hR', funscale, mul_comm R⁻¹]
-          exact hR
-        apply tendsto_nhds_of_eventually_eq
-        filter_upwards [eh'' v] with R hR ; simp [hR]
-      · have eh' v : ∀ᶠ R in atTop, h' R v = 0 := by
-          filter_upwards [(vR v).eventually evg'] with R hR
-          simp [g'] at hR
-          simp [h', CS.deriv_scale', mul_comm R⁻¹, hR]
-        apply tendsto_nhds_of_eventually_eq
-        filter_upwards [eh' v] with R hR ; simp [hR]
-      · simpa [h] using ((g.tendsto_scale v).const_sub 1).ofReal.mul tendsto_const_nhds
-    simpa [F] using tendsto_integral_filter_of_dominated_convergence bound e1 e2 e3 e4
+  have e2 : ∀ᶠ R in atTop, ∀ᵐ (a : ℝ), ‖F R a‖ ≤ bound a := by
+    filter_upwards [eventually_ge_atTop 1] with R hR
+    apply eventually_of_forall ; intro v
+    have e1 : 0 ≤ R := by linarith
+    have e2 : R⁻¹ ≤ 1 := inv_le_of_inv_le (by linarith) (by simpa using hR)
+    have e3 : R ≠ 0 := by linarith
+    have hc1 : |h' R v| ≤ c1 := by
+      simp [h', CS.deriv_scale, abs_mul, abs_inv, abs_eq_self.mpr e1] ; simp [CS.scale, funscale, e3]
+      simpa using mul_le_mul e2 (mg' _) (norm_nonneg _) zero_le_one
+    have hc2 : |h'' R v| ≤ c2 := by
+      simp [h'', CS.deriv_scale, CS.deriv_smul, abs_mul, abs_inv, abs_eq_self.mpr e1]
+      convert_to _ ≤ 1 * (1 * c2) ; simp
+      gcongr ; simp [CS.scale, e3, funscale] ; apply mg''
+    simp only [F, bound, norm_norm] ; refine (norm_add_le _ _).trans ?_ ; apply add_le_add
+    · apply (norm_add_le _ _).trans ; simp ; gcongr
+    · simpa using mul_le_mul (hh1 R v) le_rfl (by simp) zero_le_one
+
+  have e3 : Integrable bound volume := by refine (Integrable.add ?_ ?_).add ?_ <;> fun_prop
+
+  have e4 : ∀ᵐ (a : ℝ), Tendsto (fun n ↦ F n a) atTop (𝓝 0) := by
+    apply eventually_of_forall ; intro v
+    have vR : Tendsto (fun R : ℝ => R⁻¹ * v) atTop (𝓝 0) := by simpa using tendsto_inv_atTop_zero.mul_const v
+    have evg' : g' =ᶠ[𝓝 0] 0 := by convert ← g.zero.deriv ; exact deriv_const' _
+    have evg'' : g'' =ᶠ[𝓝 0] 0 := by convert ← evg'.deriv ; exact deriv_const' _
+    refine tendsto_norm_zero.comp <| (ZeroAtFilter.add ?_ ?_).add ?_
+    · apply tendsto_nhds_of_eventually_eq
+      filter_upwards [vR.eventually evg'', eventually_ne_atTop 0] with R hR hR'
+      simp [h'', CS.deriv_scale, CS.deriv_smul] ; simpa [CS.scale, hR', funscale] using .inl hR
+    · apply tendsto_nhds_of_eventually_eq ; filter_upwards [vR.eventually evg'] with R hR
+      simpa [h', CS.deriv_scale'] using .inl (.inr hR)
+    · simpa [h] using ((g.tendsto_scale v).const_sub 1).ofReal.mul tendsto_const_nhds
+
+  simpa using tendsto_integral_filter_of_dominated_convergence bound e1 e2 e3 e4
