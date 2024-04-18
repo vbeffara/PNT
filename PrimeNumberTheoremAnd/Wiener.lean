@@ -1054,7 +1054,7 @@ A standard analysis lemma, which can be proven by convolving $1_K$ with a smooth
 
 noncomputable def exists_trunc : trunc := by
   choose ψ h1 h2 h3 h4 using smooth_urysohn (-2) (-1) (1) (2) (by linarith) (by linarith)
-  exact ⟨⟨ψ, h1.of_le le_top, h2⟩, h3, h4⟩
+  exact ⟨⟨⟨ψ, h1.of_le le_top⟩, h2⟩, h3, h4⟩
 
 lemma one_div_sub_one (n : ℕ) : 1 / (↑(n - 1) : ℝ) ≤ 2 / n := by
   match n with
