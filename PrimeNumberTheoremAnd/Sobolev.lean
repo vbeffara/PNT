@@ -21,9 +21,7 @@ structure trunc extends (CS 2 ℝ) where
   h3 : (Set.Icc (-1) (1)).indicator 1 ≤ toFun
   h4 : toFun ≤ Set.indicator (Set.Ioo (-2) (2)) 1
 
-structure W1 (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] where
-  toFun : ℝ → E
-  smooth : ContDiff ℝ n toFun
+structure W1 (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] extends CD n E where
   integrable : ∀ ⦃k⦄, k ≤ n → Integrable (iteratedDeriv k toFun)
 
 abbrev W21 := W1 2 ℂ
@@ -191,7 +189,7 @@ end trunc
 
 namespace W1
 
-instance : CoeFun (W1 n E) (fun _ => ℝ → E) where coe := W1.toFun
+instance : CoeFun (W1 n E) (fun _ => ℝ → E) where coe f := f.toFun
 
 @[fun_prop] lemma integrable' (f : W1 n E) : Integrable f := f.integrable (zero_le n)
 
@@ -214,13 +212,10 @@ lemma iteratedDeriv_sub {f g : ℝ → E} (hf : ContDiff ℝ n f) (hg : ContDiff
     simp_rw [iteratedDeriv_succ', ← ih hf' hg', hfg]
 
 noncomputable def deriv (f : W1 (n + 1) E) : W1 n E where
-  toFun := _root_.deriv f
-  smooth := contDiff_succ_iff_deriv.mp f.smooth |>.2
-  integrable k hk := by
-    simpa [iteratedDeriv_succ'] using f.integrable (Nat.succ_le_succ hk)
+  toCD := f.toCD.deriv
+  integrable k hk := by simpa [iteratedDeriv_succ'] using f.integrable (Nat.succ_le_succ hk)
 
-lemma hasDerivAt (f : W1 (n + 1) E) (x : ℝ) : HasDerivAt f (f.deriv x) x :=
-  f.differentiable.differentiableAt.hasDerivAt
+lemma hasDerivAt (f : W1 (n + 1) E) (x : ℝ) : HasDerivAt f (f.deriv x) x := f.toCD.hasDerivAt _
 
 def sub (f g : W1 n E) : W1 n E where
   toFun := f - g
@@ -242,7 +237,7 @@ def of_Schwartz (f : 𝓢(ℝ, ℂ)) : W1 n ℂ where
   smooth := f.smooth n
   integrable _ _ := integrable_iteratedDeriv_Schwarz
 
-instance : Coe (CS n E) (W1 n E) where coe f := ⟨f, f.smooth, f.integrable_iteratedDeriv_of_le⟩
+instance : Coe (CS n E) (W1 n E) where coe f := ⟨f.toCD, f.integrable_iteratedDeriv_of_le⟩
 
 instance : HMul (CS n ℝ) (W1 n E) (CS n E) where hMul g f :=
   ⟨⟨⇑g • f, g.smooth.smul f.smooth⟩, g.compact.smul_right⟩
@@ -260,7 +255,7 @@ lemma norm_nonneg {f : ℝ → ℂ} : 0 ≤ norm f :=
   add_nonneg (integral_nonneg (fun t => by simp))
     (mul_nonneg (by positivity) (integral_nonneg (fun t => by simp)))
 
-noncomputable instance : Norm W21 where norm := norm ∘ W1.toFun
+noncomputable instance : Norm W21 where norm f := norm f
 
 noncomputable instance : Coe 𝓢(ℝ, ℂ) W21 where coe := W1.of_Schwartz
 
