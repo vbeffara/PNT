@@ -6,7 +6,7 @@ open Real Complex MeasureTheory Filter Topology BoundedContinuousFunction Schwar
 
 attribute [fun_prop] Integrable Integrable.norm Integrable.const_mul Integrable.add
 attribute [fun_prop] AEStronglyMeasurable Continuous.aestronglyMeasurable
-attribute [fun_prop] HasCompactSupport HasCompactSupport.smul_right
+attribute [fun_prop] HasCompactSupport HasCompactSupport.smul_right HasCompactSupport.mul_right HasCompactSupport.mul_left
 
 variable {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E] {n : ℕ}
 
@@ -17,7 +17,7 @@ variable {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E] {n : ℕ}
 @[ext] structure CS (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] where
   toFun : ℝ → E
   smooth : ContDiff ℝ n toFun
-  h2 : HasCompactSupport toFun
+  compact : HasCompactSupport toFun
 
 structure trunc extends (CS 2 ℝ) where
   h3 : (Set.Icc (-1) (1)).indicator 1 ≤ toFun
@@ -53,22 +53,22 @@ variable {f : CS n E} {R x v : ℝ}
 instance : CoeFun (CS n E) (fun _ => ℝ → E) where coe := CS.toFun
 
 instance : Coe (CS n ℝ) (CS n ℂ) where coe f := ⟨fun x => f x,
-  contDiff_ofReal.of_le le_top |>.comp f.smooth, f.h2.comp_left (g := ofReal') rfl⟩
+  contDiff_ofReal.of_le le_top |>.comp f.smooth, f.compact.comp_left (g := ofReal') rfl⟩
 
-def of_le (f : CS n E) {m : ℕ} (hm : m ≤ n) : CS m E := ⟨f, f.smooth.of_le (by simp [hm]), f.h2⟩
+def of_le (f : CS n E) {m : ℕ} (hm : m ≤ n) : CS m E := ⟨f, f.smooth.of_le (by simp [hm]), f.compact⟩
 
 instance {k : ℕ} : CoeOut (CS (n + k) E) (CS n E) where coe f := f.of_le (by simp)
 
 def neg (f : CS n E) : CS n E where
   toFun := -f
   smooth := f.smooth.neg
-  h2 := by simpa [HasCompactSupport, tsupport] using f.h2
+  compact := by simpa [HasCompactSupport, tsupport] using f.compact
 
 instance : Neg (CS n E) where neg := neg
 
 @[simp] lemma neg_apply {x : ℝ} : (-f) x = - (f x) := rfl
 
-def smul (R : ℝ) (f : CS n E) : CS n E := ⟨R • f, f.smooth.const_smul R, f.h2.smul_left⟩
+def smul (R : ℝ) (f : CS n E) : CS n E := ⟨R • f, f.smooth.const_smul R, f.compact.smul_left⟩
 
 instance : HSMul ℝ (CS n E) (CS n E) where hSMul := smul
 
@@ -79,7 +79,7 @@ instance : HSMul ℝ (CS n E) (CS n E) where hSMul := smul
 noncomputable nonrec def deriv (f : CS (n + 1) E) : CS n E where
   toFun := deriv f
   smooth := (contDiff_succ_iff_deriv.mp f.smooth).2
-  h2 := f.h2.deriv
+  compact := f.compact.deriv
 
 lemma hasDerivAt (f : CS (n + 1) E) (x : ℝ) : HasDerivAt f (f.deriv x) x :=
   (f.smooth.differentiable (by simp)).differentiableAt.hasDerivAt
@@ -94,7 +94,7 @@ noncomputable def scale (g : CS n E) (R : ℝ) : CS n E := by
   · exact ⟨0, contDiff_const, by simp [HasCompactSupport, tsupport]⟩
   · refine ⟨fun x => funscale g R x, ?_, ?_⟩
     · exact g.smooth.comp (contDiff_const.smul contDiff_id)
-    · exact g.h2.comp_smul (inv_ne_zero h)
+    · exact g.compact.comp_smul (inv_ne_zero h)
 
 lemma deriv_scale {f : CS (n + 1) E} : (f.scale R).deriv = R⁻¹ • f.deriv.scale R := by
   ext v ; by_cases hR : R = 0 <;> simp [hR, scale]
@@ -113,10 +113,10 @@ lemma tendsto_scale (f : CS n E) (x : ℝ) : Tendsto (fun R => f.scale R x) atTo
   filter_upwards [eventually_ne_atTop 0] with R hR ; simp [scale, hR]
 
 lemma bounded : ∃ C, ∀ v, ‖f v‖ ≤ C := by
-  obtain ⟨x, hx⟩ := (continuous_norm.comp f.continuous).exists_forall_ge_of_hasCompactSupport f.h2.norm
+  obtain ⟨x, hx⟩ := (continuous_norm.comp f.continuous).exists_forall_ge_of_hasCompactSupport f.compact.norm
   refine ⟨_, hx⟩
 
-lemma integrable (f : CS n E) : Integrable f := f.continuous.integrable_of_hasCompactSupport f.h2
+lemma integrable (f : CS n E) : Integrable f := f.continuous.integrable_of_hasCompactSupport f.compact
 
 lemma integrable_iteratedDeriv {n : ℕ} (f : CS n E) : Integrable (iteratedDeriv n f) := by
   induction n with
@@ -201,7 +201,7 @@ def of_Schwartz (f : 𝓢(ℝ, ℂ)) : W1 n ℂ where
 
 instance : Coe (CS n E) (W1 n E) where coe f := ⟨f, f.smooth, f.integrable_iteratedDeriv_of_le⟩
 
-instance : HMul (CS n ℝ) (W1 n E) (CS n E) where hMul g f := ⟨⇑g • f, g.smooth.smul f.smooth, g.h2.smul_right⟩
+instance : HMul (CS n ℝ) (W1 n E) (CS n E) where hMul g f := ⟨⇑g • f, g.smooth.smul f.smooth, g.compact.smul_right⟩
 
 end W1
 
@@ -222,7 +222,7 @@ noncomputable instance : Coe 𝓢(ℝ, ℂ) W21 where coe := W1.of_Schwartz
 
 instance : Coe (CS 2 ℂ) W21 where coe := fun f => f
 
-instance : HMul (CS 2 ℂ) W21 (CS 2 ℂ) where hMul g f := ⟨g * f, g.smooth.mul f.smooth, g.h2.mul_right⟩
+instance : HMul (CS 2 ℂ) W21 (CS 2 ℂ) where hMul g f := ⟨g * f, g.smooth.mul f.smooth, g.compact.mul_right⟩
 
 instance : HMul (CS 2 ℝ) W21 (CS 2 ℂ) where hMul g f := (g : CS 2 ℂ) * f
 

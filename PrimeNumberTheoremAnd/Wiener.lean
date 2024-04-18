@@ -377,7 +377,7 @@ lemma decay_bounds (ψ : CS 2 ℂ) (hA : ∀ t, ‖ψ t‖ ≤ A / (1 + t ^ 2)) 
   exact decay_bounds_W21 ψ hA hA' u
 
 lemma decay_bounds_cor_aux (ψ : CS 2 ℂ) : ∃ C : ℝ, ∀ u, ‖ψ u‖ ≤ C / (1 + u ^ 2) := by
-  have l1 : HasCompactSupport (fun u : ℝ => ((1 + u ^ 2) : ℝ) * ψ u) := by exact ψ.h2.mul_left
+  have l1 : HasCompactSupport (fun u : ℝ => ((1 + u ^ 2) : ℝ) * ψ u) := by exact ψ.compact.mul_left
   obtain ⟨C, hC⟩ := l1.exists_bound_of_continuous (by continuity)
   refine ⟨C, fun u => ?_⟩
   specialize hC u
@@ -445,7 +445,7 @@ lemma limiting_fourier_aux (hG' : Set.EqOn G (fun s ↦ LSeries f s - A / (s - 1
   have l6 : Continuous fun t : ℝ ↦ LSeries f (↑σ' + ↑t * I) * ψ t * ↑x ^ (↑t * I) := by
     apply ((continuous_LSeries_aux (hf _ hσ')).mul ψ.continuous).mul l8
   have l4 : Integrable fun t : ℝ ↦ LSeries f (↑σ' + ↑t * I) * ψ t * ↑x ^ (↑t * I) := by
-    exact l6.integrable_of_hasCompactSupport ψ.h2.mul_left.mul_right
+    exact l6.integrable_of_hasCompactSupport ψ.compact.mul_left.mul_right
   have e2 (u : ℝ) : σ' + u * I - 1 ≠ 0 := by
     intro h ; have := congr_arg Complex.re h ; simp at this ; linarith
   have l7 : Continuous fun a ↦ A * ↑(x ^ (1 - σ')) * (↑(x ^ (σ' - 1)) * (1 / (σ' + a * I - 1) * ψ a * x ^ (a * I))) := by
@@ -454,7 +454,7 @@ lemma limiting_fourier_aux (hG' : Set.EqOn G (fun s ↦ LSeries f s - A / (s - 1
     continuity
   have l5 : Integrable fun a ↦ A * ↑(x ^ (1 - σ')) * (↑(x ^ (σ' - 1)) * (1 / (σ' + a * I - 1) * ψ a * x ^ (a * I))) := by
     apply l7.integrable_of_hasCompactSupport
-    exact ψ.h2.mul_left.mul_right.mul_left.mul_left
+    exact ψ.compact.mul_left.mul_right.mul_left.mul_left
 
   simp_rw [l1 σ' hσ', l2 σ' hσ', ← integral_mul_left, ← integral_sub l4 l5]
   apply integral_congr_ae
@@ -936,7 +936,7 @@ theorem limiting_fourier_lim3 (hG : ContinuousOn G {s | 1 ≤ s.re}) (ψ : CS 2 
   have l1 : IsCompact S := by
     refine Metric.isCompact_iff_isClosed_bounded.mpr ⟨?_, ?_⟩
     · exact isClosed_Icc.reProdIm (isClosed_tsupport ψ)
-    · exact (Metric.isBounded_Icc 1 2).reProdIm ψ.h2.isBounded
+    · exact (Metric.isBounded_Icc 1 2).reProdIm ψ.compact.isBounded
   have l2 : S ⊆ {s : ℂ | 1 ≤ s.re} := fun z hz => (mem_reProdIm.mp hz).1.1
   have l3 : ContinuousOn (‖G ·‖) S := (hG.mono l2).norm
   have l4 : S.Nonempty := ⟨1 + a₀ * I, by simp [S, mem_reProdIm, ha₀]⟩
@@ -964,7 +964,7 @@ theorem limiting_fourier_lim3 (hG : ContinuousOn G {s | 1 ≤ s.re}) (ψ : CS 2 
     · have : v ∉ Function.support ψ := fun a ↦ h (subset_tsupport ψ a)
       simp at this ; simp [this, bound]
 
-  · suffices h : Continuous bound by exact h.integrable_of_hasCompactSupport ψ.h2.norm.mul_left
+  · suffices h : Continuous bound by exact h.integrable_of_hasCompactSupport ψ.compact.norm.mul_left
     continuity
   · apply eventually_of_forall ; intro t
     apply Tendsto.mul_const
