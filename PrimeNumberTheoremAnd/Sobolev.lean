@@ -2,13 +2,13 @@ import Mathlib.Analysis.Calculus.Deriv.Support
 import Mathlib.Analysis.Distribution.SchwartzSpace
 import Mathlib.Order.Filter.ZeroAndBoundedAtFilter
 
-open Real Complex MeasureTheory Filter Topology BoundedContinuousFunction SchwartzMap  BigOperators
+open Real Complex MeasureTheory Filter Topology BoundedContinuousFunction SchwartzMap  BigOperators Set
 
 attribute [fun_prop] Integrable Integrable.norm Integrable.const_mul Integrable.add
 attribute [fun_prop] AEStronglyMeasurable Continuous.aestronglyMeasurable
 attribute [fun_prop] HasCompactSupport HasCompactSupport.smul_right HasCompactSupport.smul_right HasCompactSupport.mul_left
 
-variable {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E] {n : ℕ}
+variable {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E] {k n : ℕ}
 
 @[ext] structure CD (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] where
   toFun : ℝ → E
@@ -39,6 +39,12 @@ lemma contDiff_ofReal : ContDiff ℝ ⊤ ofReal' := by
 lemma tendsto_funscale {f : ℝ → E} (hf : ContinuousAt f 0) (x : ℝ) :
     Tendsto (fun R => funscale f R x) atTop (𝓝 (f 0)) :=
   hf.tendsto.comp (by simpa using tendsto_inv_atTop_zero.mul_const x)
+
+@[fun_prop] nonrec lemma HasCompactSupport.iteratedDeriv {f : ℝ → E} (hf : HasCompactSupport f) :
+    HasCompactSupport (iteratedDeriv n f) := by
+  induction n with
+  | zero => exact hf
+  | succ n ih => simpa [iteratedDeriv_succ] using ih.deriv
 
 end lemmas
 
@@ -157,6 +163,14 @@ lemma bounded : ∃ C, ∀ v, ‖f v‖ ≤ C := by
   obtain ⟨x, hx⟩ := (continuous_norm.comp f.continuous).exists_forall_ge_of_hasCompactSupport f.compact.norm
   refine ⟨_, hx⟩
 
+@[simp] lemma bounded' : BddAbove (range fun v ↦ ‖f.toFun v‖) :=
+  (f.compact.norm.isCompact_range (by fun_prop)).bddAbove
+
+lemma bounded'_of_le (hk : k ≤ n) : BddAbove (range fun v ↦ ‖iteratedDeriv k f v‖) := by
+  apply IsCompact.bddAbove
+  apply f.compact.iteratedDeriv.norm.isCompact_range
+  exact f.smooth.continuous_iteratedDeriv k (by simp [hk]) |>.norm
+
 lemma integrable (f : CS n E) : Integrable f := f.continuous.integrable_of_hasCompactSupport f.compact
 
 lemma integrable_iteratedDeriv {n : ℕ} (f : CS n E) : Integrable (iteratedDeriv n f) := by
@@ -166,6 +180,19 @@ lemma integrable_iteratedDeriv {n : ℕ} (f : CS n E) : Integrable (iteratedDeri
 
 lemma integrable_iteratedDeriv_of_le {n : ℕ} (f : CS n E) ⦃k : ℕ⦄ (hk : k ≤ n) : Integrable (iteratedDeriv k f) := by
   obtain ⟨m, rfl⟩ := Nat.le.dest hk ; exact (f : CS k E).integrable_iteratedDeriv
+
+noncomputable def norm (f : CS n E) : ℝ :=
+  Finset.sup' (s := Finset.range (n + 1)) (by simp) (fun k => ⨆ v, ‖iteratedDeriv k f v‖)
+
+noncomputable instance : Norm (CS n E) where norm := norm
+
+lemma le_norm (f : CS n E) (x : ℝ) : ‖f x‖ ≤ ‖f‖ := by
+  apply (le_ciSup bounded' x).trans
+  exact Finset.le_sup' (b := 0) (fun k => ⨆ v, ‖iteratedDeriv k f v‖) (by simp)
+
+lemma le_norm_of_le (f : CS n E) (hk : k ≤ n) (x : ℝ) : ‖iteratedDeriv k f x‖ ≤ ‖f‖ := by
+  apply (le_ciSup (bounded'_of_le hk) x).trans
+  refine Finset.le_sup' (b := k) (fun k => ⨆ v, ‖iteratedDeriv k f v‖) (by simp ; omega)
 
 end CS
 
@@ -241,6 +268,24 @@ instance : Coe (CS n E) (W1 n E) where coe f := ⟨f.toCD, f.integrable_iterated
 
 instance : HMul (CS n ℝ) (W1 n E) (CS n E) where hMul g f :=
   ⟨⟨⇑g • f, g.smooth.smul f.smooth⟩, g.compact.smul_right⟩
+
+noncomputable def norm (n : ℕ) (f : ℝ → E) : ℝ :=
+  ∑ k in Finset.range (n + 1), ∫ v, ‖iteratedDeriv k f v‖
+
+noncomputable instance : Norm (W1 n E) where norm f := norm n f
+
+theorem norm_mul (g : CS n ℝ) (f : W1 n E) : ‖(g * f : W1 n E)‖ ≤ ‖g‖ * ‖f‖ := by
+  induction n with
+  | zero =>
+    convert_to ∫ v, ‖g v • f v‖ ≤ ‖g‖ * (∫ v, ‖f v‖) using 0 ; · simp [Norm.norm, norm, HMul.hMul]
+    have l1 : Integrable (fun a ↦ ‖g‖ * ‖f a‖) := by fun_prop
+    rw [← integral_mul_left] ; refine integral_mono (g * f).integrable.norm (by fun_prop) ?_
+    intro v ; simp [norm_smul] ; gcongr ; exact g.le_norm v
+  | succ n ih => sorry
+
+theorem W1_approximation (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
+    Tendsto (fun R => ‖f - (g.scale R * f : W1 n E)‖) atTop (𝓝 0) := by
+  sorry
 
 end W1
 
