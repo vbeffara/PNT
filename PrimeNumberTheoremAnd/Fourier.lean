@@ -59,7 +59,7 @@ theorem fourierIntegral_self_add_deriv_deriv (f : W21) (u : ℝ) :
   have l5 : Differentiable ℝ (deriv f) := f.deriv.differentiable
   have l6 := Real.fourierIntegral_deriv f.deriv.integrable' l5 f.deriv.deriv.integrable'
   have l7 := Real.fourierIntegral_deriv f.integrable' l4 f.deriv.integrable'
-  simp [W1.deriv] at l6 l7 ; simp [f.integrable', l1, add_mul, l6, l7]
+  simp [W1.deriv, CD.deriv] at l6 l7 ; simp [f.integrable', l1, add_mul, l6, l7]
   field_simp [pi_ne_zero] ; ring_nf ; simp
 
 @[simp] lemma deriv_ofReal : deriv ofReal' = fun _ => 1 := by

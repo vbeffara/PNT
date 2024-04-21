@@ -8,7 +8,7 @@ attribute [fun_prop] Integrable Integrable.norm Integrable.const_mul Integrable.
 attribute [fun_prop] AEStronglyMeasurable Continuous.aestronglyMeasurable
 attribute [fun_prop] HasCompactSupport HasCompactSupport.smul_right HasCompactSupport.smul_right HasCompactSupport.mul_left
 
-variable {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E] {k n : ℕ}
+variable {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E] {k n : ℕ} {𝕜 : Type*} [RCLike 𝕜]
 
 @[ext] structure CD (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] where
   toFun : ℝ → E
@@ -58,13 +58,17 @@ instance : Coe (CD n ℝ) (CD n ℂ) where coe f := ⟨ofReal' ∘ f, contDiff_o
 
 def of_le (f : CD n E) {m : ℕ} (hm : m ≤ n) : CD m E := ⟨f, f.smooth.of_le (by simp [hm])⟩
 
+def of_succ (f : CD (n + 1) E) : CD n E := ⟨f, f.smooth.of_succ⟩
+
+instance : Coe (CD (n + 1) E) (CD n E) where coe f := f.of_succ
+
 def neg (f : CD n E) : CD n E := ⟨-f, f.smooth.neg⟩
 
 instance : Neg (CD n E) where neg := neg
 
-def smul (R : ℝ) (f : CD n E) : CD n E := ⟨R • f, f.smooth.const_smul R⟩
+def const_smul (R : ℝ) (f : CD n E) : CD n E := ⟨R • f, f.smooth.const_smul R⟩
 
-instance : HSMul ℝ (CD n E) (CD n E) where hSMul := smul
+instance : HSMul ℝ (CD n E) (CD n E) where hSMul := const_smul
 
 @[simp] lemma smul_apply : (R • f) x = R • f x := rfl
 
@@ -77,7 +81,7 @@ lemma hasDerivAt (f : CD (n + 1) E) (x : ℝ) : HasDerivAt f (f.deriv x) x :=
 
 lemma deriv_apply {f : CD (n + 1) E} {x : ℝ} : f.deriv x = _root_.deriv f x := rfl
 
-lemma deriv_smul {f : CD (n + 1) E} : (R • f).deriv = R • f.deriv := by
+lemma deriv_const_smul {f : CD (n + 1) E} : (R • f).deriv = R • f.deriv := by
   ext x ; exact (f.hasDerivAt x |>.const_smul R).deriv
 
 noncomputable def scale (g : CD n E) (R : ℝ) : CD n E := by
@@ -87,7 +91,7 @@ noncomputable def scale (g : CD n E) (R : ℝ) : CD n E := by
 
 lemma deriv_scale {f : CD (n + 1) E} : (f.scale R).deriv = R⁻¹ • f.deriv.scale R := by
   ext v ; by_cases hR : R = 0 <;> simp [hR, scale]
-  · simp [deriv, smul] ; exact deriv_const _ _
+  · simp [deriv, const_smul] ; exact deriv_const _ _
   · exact ((f.hasDerivAt (R⁻¹ • v)).scomp v (by simpa using (hasDerivAt_id v).const_smul R⁻¹)).deriv
 
 @[simp] lemma deriv_scale' {f : CD (n + 1) E} : (f.scale R).deriv v = R⁻¹ • f.deriv (R⁻¹ • v) := by
@@ -100,6 +104,37 @@ lemma hasDerivAt_scale (f : CD (n + 1) E) (R x : ℝ) :
 lemma tendsto_scale (f : CD n E) (x : ℝ) : Tendsto (fun R => f.scale R x) atTop (𝓝 (f 0)) := by
   apply (tendsto_funscale f.continuous.continuousAt x).congr'
   filter_upwards [eventually_ne_atTop 0] with R hR ; simp [scale, hR]
+
+def add (f g : CD n E) : CD n E := ⟨f + g, f.smooth.add g.smooth⟩
+
+instance : Add (CD n E) where add := add
+
+def mul (f g : CD n 𝕜) : CD n 𝕜 where
+  toFun := f * g
+  smooth := f.smooth.mul g.smooth
+
+instance : Mul (CD n 𝕜) where mul := mul
+
+nonrec lemma deriv_mul (f g : CD (n + 1) 𝕜) : (f * g).deriv = f.deriv * g.of_succ + f.of_succ * g.deriv := by
+  ext t
+  have l1 : DifferentiableAt ℝ f.toFun t := (f.smooth.differentiable (by simp)).differentiableAt
+  have l2 : DifferentiableAt ℝ g.toFun t := (g.smooth.differentiable (by simp)).differentiableAt
+  exact deriv_mul l1 l2
+
+def smul (f : CD n ℝ) (g : CD n E) : CD n E := ⟨fun t => f t • g t, f.smooth.smul g.smooth⟩
+
+instance : SMul (CD n ℝ) (CD n E) where smul := smul
+
+nonrec lemma deriv_smul (f : CD (n + 1) ℝ) (g : CD (n + 1) E) :
+    (f • g).deriv = f.of_succ • g.deriv + f.deriv • g.of_succ := by
+  ext t
+  have l1 : DifferentiableAt ℝ f.toFun t := (f.smooth.differentiable (by simp)).differentiableAt
+  have l2 : DifferentiableAt ℝ g.toFun t := (g.smooth.differentiable (by simp)).differentiableAt
+  exact deriv_smul l1 l2
+
+noncomputable nonrec def iteratedDeriv (k : ℕ) (f : CD (n + k) E) : CD n E := by
+  refine ⟨iteratedDeriv k f, ?_⟩
+  simpa [iteratedDeriv_eq_iterate] using f.smooth.iterate_deriv' n k
 
 end CD
 
@@ -118,7 +153,9 @@ instance : Coe (CS n ℝ) (CS n ℂ) where coe f := ⟨f, f.compact.comp_left (g
 
 nonrec def of_le (f : CS n E) {m : ℕ} (hm : m ≤ n) : CS m E := ⟨f.of_le hm, f.compact⟩
 
-instance {k : ℕ} : CoeOut (CS (n + k) E) (CS n E) where coe f := f.of_le (by simp)
+nonrec def of_succ (f : CS (n + 1) E) : CS n E := f.of_le (by simp)
+
+instance : Coe (CS (n + 1) E) (CS n E) where coe f := f.of_succ
 
 @[simp] lemma neg_toFun : (-f.toCD).toFun = -(f.toFun) := rfl
 
@@ -179,7 +216,7 @@ lemma integrable_iteratedDeriv {n : ℕ} (f : CS n E) : Integrable (iteratedDeri
   | succ n ih => simpa [iteratedDeriv_succ'] using ih f.deriv
 
 lemma integrable_iteratedDeriv_of_le {n : ℕ} (f : CS n E) ⦃k : ℕ⦄ (hk : k ≤ n) : Integrable (iteratedDeriv k f) := by
-  obtain ⟨m, rfl⟩ := Nat.le.dest hk ; exact (f : CS k E).integrable_iteratedDeriv
+  obtain ⟨m, rfl⟩ := Nat.le.dest hk ; exact (f.of_le hk).integrable_iteratedDeriv
 
 noncomputable def norm (f : CS n E) : ℝ :=
   Finset.sup' (s := Finset.range (n + 1)) (by simp) (fun k => ⨆ v, ‖iteratedDeriv k f v‖)
@@ -217,6 +254,8 @@ end trunc
 namespace W1
 
 instance : CoeFun (W1 n E) (fun _ => ℝ → E) where coe f := f.toFun
+
+instance : Coe (W1 n E) (CD n E) where coe := toCD
 
 @[fun_prop] lemma integrable' (f : W1 n E) : Integrable f := f.integrable (zero_le n)
 
@@ -266,8 +305,15 @@ def of_Schwartz (f : 𝓢(ℝ, ℂ)) : W1 n ℂ where
 
 instance : Coe (CS n E) (W1 n E) where coe f := ⟨f.toCD, f.integrable_iteratedDeriv_of_le⟩
 
-instance : HMul (CS n ℝ) (W1 n E) (CS n E) where hMul g f :=
-  ⟨⟨⇑g • f, g.smooth.smul f.smooth⟩, g.compact.smul_right⟩
+def smul (g : CS n ℝ) (f : W1 n E) : W1 n E := by
+  refine ⟨g.toCD • f.toCD, ?_⟩
+  intro k hk
+  obtain ⟨l, rfl⟩ : ∃ l, l + k = n := by simpa [add_comm k] using Nat.le.dest hk
+  apply Continuous.integrable_of_hasCompactSupport
+  · exact (g.toCD • f.toCD).iteratedDeriv k |>.continuous
+  · exact g.compact.smul_right.iteratedDeriv
+
+instance : SMul (CS n ℝ) (W1 n E) where smul := smul
 
 noncomputable def norm (n : ℕ) (f : ℝ → E) : ℝ :=
   ∑ k in Finset.range (n + 1), ∫ v, ‖iteratedDeriv k f v‖
@@ -277,23 +323,23 @@ noncomputable instance : Norm (W1 n E) where norm f := norm n f
 lemma norm_succ (f : W1 (n + 1) E) : ‖f‖ = (∫ v, ‖f v‖) + ‖f.deriv‖ := by
   simp [Norm.norm, norm, deriv, CD.deriv, ← iteratedDeriv_succ', Finset.sum_range_succ' _ (n + 1)] ; ring
 
-lemma norm_mul0 (g : CS n ℝ) (f : W1 n E) : ∫ (v : ℝ), ‖(g * f) v‖ ≤ ‖g‖ * ∫ (v : ℝ), ‖f v‖ := by
+lemma norm_mul0 (g : CS n ℝ) (f : W1 n E) : ∫ (v : ℝ), ‖(g • f) v‖ ≤ ‖g‖ * ∫ (v : ℝ), ‖f v‖ := by
   convert_to ∫ v, ‖g v • f v‖ ≤ ‖g‖ * (∫ v, ‖f v‖) using 0
-  rw [← integral_mul_left] ; refine integral_mono (g * f).integrable.norm (by fun_prop) ?_
+  rw [← integral_mul_left] ; refine integral_mono (g • f).integrable'.norm (by fun_prop) ?_
   intro v ; simp [norm_smul] ; gcongr ; exact g.le_norm v
 
-theorem norm_mul (g : CS n ℝ) (f : W1 n E) : ‖(g * f : W1 n E)‖ ≤ ‖g‖ * ‖f‖ := by
+theorem norm_mul (g : CS n ℝ) (f : W1 n E) : ‖g • f‖ ≤ ‖g‖ * ‖f‖ := by
   induction n with
   | zero => simpa [Norm.norm, norm] using norm_mul0 g f
   | succ n ih =>
     simp [norm_succ, mul_add] ; apply add_le_add (norm_mul0 g f)
-    let gg : CS (n + 1) ℝ := g
-    have := ih gg f.deriv
-    simp [CS.of_le, CD.of_le] at this
+    specialize ih g
+    have := @CD.deriv_smul E _ _ n g f
+    rw [deriv]
     sorry
 
 theorem W1_approximation (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
-    Tendsto (fun R => ‖f - (g.scale R * f : W1 n E)‖) atTop (𝓝 0) := by
+    Tendsto (fun R => ‖f - g.scale R • f‖) atTop (𝓝 0) := by
   sorry
 
 end W1
@@ -315,10 +361,15 @@ noncomputable instance : Coe 𝓢(ℝ, ℂ) W21 where coe := W1.of_Schwartz
 
 instance : Coe (CS 2 ℂ) W21 where coe := fun f => f
 
-instance : HMul (CS 2 ℂ) W21 (CS 2 ℂ) where hMul g f := ⟨⟨g * f, g.smooth.mul f.smooth⟩, g.compact.mul_right⟩
+def mul_CSC_W21 (g : CS 2 ℂ) (f : W21) : CS 2 ℂ := ⟨⟨g * f, g.smooth.mul f.smooth⟩, g.compact.mul_right⟩
 
-instance : HMul (CS 2 ℝ) W21 (CS 2 ℂ) where hMul g f := (g : CS 2 ℂ) * f
+instance : HMul (CS 2 ℂ) W21 (CS 2 ℂ) where hMul := mul_CSC_W21
 
+noncomputable instance : HMul (CS 2 ℝ) W21 (CS 2 ℂ) where
+  hMul g f := by
+    refine ⟨g * f, ?_⟩
+    apply HasCompactSupport.mul_right
+    exact @HasCompactSupport.comp_left ℝ ℝ ℂ _ _ _ ofReal' g g.compact rfl
 end W21
 
 lemma approx_aux1 {f : ℝ → E} {g : ℝ → ℝ} (h1 : Integrable f) (h2 : ∀ x, |g x| ≤ 1)

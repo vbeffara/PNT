@@ -345,7 +345,7 @@ lemma decay_bounds_key (f : W21) (u : ℝ) : ‖𝓕 f u‖ ≤ ‖f‖ * (1 + u
   have key := fourierIntegral_self_add_deriv_deriv f u
   simp only [Function.iterate_succ _ 1, Function.iterate_one, Function.comp_apply] at key
   have := F_sub f.integrable' (f.deriv.deriv.integrable'.const_mul (1 / (4 * ↑π ^ 2)))
-  simp only [W1.deriv] at this ; rw [this] at key
+  simp only [W1.deriv, CD.deriv] at this ; rw [this] at key
   rw [← div_eq_mul_inv, le_div_iff l1, mul_comm, l2, ← norm_mul, key, sub_eq_add_neg]
   apply norm_add_le _ _ |>.trans
   change _ ≤ W21.norm _
@@ -1514,7 +1514,7 @@ lemma limiting_cor_W21 (ψ : W21) (hf : ∀ (σ' : ℝ), 1 < σ' → Summable (n
 
   -- Build the truncation
   obtain g := exists_trunc
-  let Ψ R := g.scale R * ψ
+  let Ψ R : CS 2 ℂ := W21.mul_CSC_W21 (g.scale R) ψ
   have key R : Tendsto (fun x ↦ S x (Ψ R)) atTop (𝓝 0) := limiting_cor (Ψ R) hf hcheby hG hG'
 
   -- Choose the truncation radius
