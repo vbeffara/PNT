@@ -274,14 +274,23 @@ noncomputable def norm (n : ℕ) (f : ℝ → E) : ℝ :=
 
 noncomputable instance : Norm (W1 n E) where norm f := norm n f
 
+lemma norm_succ (f : W1 (n + 1) E) : ‖f‖ = (∫ v, ‖f v‖) + ‖f.deriv‖ := by
+  simp [Norm.norm, norm, deriv, CD.deriv, ← iteratedDeriv_succ', Finset.sum_range_succ' _ (n + 1)] ; ring
+
+lemma norm_mul0 (g : CS n ℝ) (f : W1 n E) : ∫ (v : ℝ), ‖(g * f) v‖ ≤ ‖g‖ * ∫ (v : ℝ), ‖f v‖ := by
+  convert_to ∫ v, ‖g v • f v‖ ≤ ‖g‖ * (∫ v, ‖f v‖) using 0
+  rw [← integral_mul_left] ; refine integral_mono (g * f).integrable.norm (by fun_prop) ?_
+  intro v ; simp [norm_smul] ; gcongr ; exact g.le_norm v
+
 theorem norm_mul (g : CS n ℝ) (f : W1 n E) : ‖(g * f : W1 n E)‖ ≤ ‖g‖ * ‖f‖ := by
   induction n with
-  | zero =>
-    convert_to ∫ v, ‖g v • f v‖ ≤ ‖g‖ * (∫ v, ‖f v‖) using 0 ; · simp [Norm.norm, norm, HMul.hMul]
-    have l1 : Integrable (fun a ↦ ‖g‖ * ‖f a‖) := by fun_prop
-    rw [← integral_mul_left] ; refine integral_mono (g * f).integrable.norm (by fun_prop) ?_
-    intro v ; simp [norm_smul] ; gcongr ; exact g.le_norm v
-  | succ n ih => sorry
+  | zero => simpa [Norm.norm, norm] using norm_mul0 g f
+  | succ n ih =>
+    simp [norm_succ, mul_add] ; apply add_le_add (norm_mul0 g f)
+    let gg : CS (n + 1) ℝ := g
+    have := ih gg f.deriv
+    simp [CS.of_le, CD.of_le] at this
+    sorry
 
 theorem W1_approximation (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
     Tendsto (fun R => ‖f - (g.scale R * f : W1 n E)‖) atTop (𝓝 0) := by
