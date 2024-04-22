@@ -21,11 +21,6 @@ structure trunc extends (CS 2 ℝ) where
   h3 : (Set.Icc (-1) (1)).indicator 1 ≤ toFun
   h4 : toFun ≤ Set.indicator (Set.Ioo (-2) (2)) 1
 
-structure W1 (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] extends CD n E where
-  integrable : ∀ ⦃k⦄, k ≤ n → Integrable (iteratedDeriv k toFun)
-
-abbrev W21 := W1 2 ℂ
-
 section lemmas
 
 noncomputable def funscale {E : Type*} (g : ℝ → E) (R x : ℝ) : E := g (R⁻¹ • x)
@@ -136,6 +131,31 @@ noncomputable nonrec def iteratedDeriv (k : ℕ) (f : CD (n + k) E) : CD n E := 
   refine ⟨iteratedDeriv k f, ?_⟩
   simpa [iteratedDeriv_eq_iterate] using f.smooth.iterate_deriv' n k
 
+noncomputable def iteratedDeriv_of_le {n : ℕ} ⦃k : ℕ⦄ (hk : k ≤ n) (f : CD n E) : CD (n - k) E := by
+  refine ⟨_root_.iteratedDeriv k f.toFun, ?_⟩
+  have := Nat.le.dest hk ; simp_rw [add_comm k] at this ; obtain ⟨l, rfl⟩ := this ; simp
+  simpa [iteratedDeriv_eq_iterate] using f.smooth.iterate_deriv' l k
+
+nonrec lemma iteratedDeriv_succ {k : ℕ} {f : CD (n + (k + 1)) E} :
+    iteratedDeriv (k + 1) f = iteratedDeriv k f.deriv := by
+  simp [iteratedDeriv, iteratedDeriv_succ'] ; rfl
+
+nonrec lemma deriv_add (f g : CD (n + 1) E) : (f + g).deriv = f.deriv + g.deriv := by
+  ext x
+  apply deriv_add
+  · exact (f.smooth.differentiable (by simp)).differentiableAt
+  · exact (g.smooth.differentiable (by simp)).differentiableAt
+
+lemma iteratedDeriv_add {k : ℕ} {f g : CD (n + k) E} :
+    (f + g).iteratedDeriv k = f.iteratedDeriv k + g.iteratedDeriv k := by
+  induction k with
+  | zero => rfl
+  | succ k ih => simp_rw [iteratedDeriv_succ, deriv_add, ih]
+
+lemma iteratedDeriv_add' {k : ℕ} {f g : CD (n + k) E} {x : ℝ} :
+    (f + g).iteratedDeriv k x = f.iteratedDeriv k x + g.iteratedDeriv k x := by
+  rw [iteratedDeriv_add] ; rfl
+
 end CD
 
 namespace CS
@@ -223,6 +243,11 @@ noncomputable def norm (f : CS n E) : ℝ :=
 
 noncomputable instance : Norm (CS n E) where norm := norm
 
+nonrec lemma norm_nonneg : 0 ≤ ‖f‖ := by
+  simp [Norm.norm, norm] ; use 0 ; simp
+  apply (norm_nonneg (f 0)).trans
+  apply le_ciSup (f := fun x => ‖f x‖) bounded'
+
 lemma le_norm (f : CS n E) (x : ℝ) : ‖f x‖ ≤ ‖f‖ := by
   apply (le_ciSup bounded' x).trans
   exact Finset.le_sup' (b := 0) (fun k => ⨆ v, ‖iteratedDeriv k f v‖) (by simp)
@@ -251,13 +276,19 @@ lemma zero (g : trunc) : g =ᶠ[𝓝 0] 1 := by
 
 end trunc
 
+@[ext] structure W1 (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] extends CD n E where
+  integrable ⦃k⦄ (hk : k ≤ n) : Integrable (toCD.iteratedDeriv_of_le hk)
+
+abbrev W21 := W1 2 ℂ
+
 namespace W1
 
 instance : CoeFun (W1 n E) (fun _ => ℝ → E) where coe f := f.toFun
 
 instance : Coe (W1 n E) (CD n E) where coe := toCD
 
-@[fun_prop] lemma integrable' (f : W1 n E) : Integrable f := f.integrable (zero_le n)
+@[fun_prop] lemma integrable' (f : W1 n E) : Integrable f := by
+  exact f.integrable (k := 0) (by simp)
 
 @[fun_prop, continuity] lemma continuous (f : W1 n E) : Continuous f := f.smooth.continuous
 
@@ -279,7 +310,8 @@ lemma iteratedDeriv_sub {f g : ℝ → E} (hf : ContDiff ℝ n f) (hg : ContDiff
 
 noncomputable def deriv (f : W1 (n + 1) E) : W1 n E where
   toCD := f.toCD.deriv
-  integrable k hk := by simpa [iteratedDeriv_succ'] using f.integrable (Nat.succ_le_succ hk)
+  integrable k hk := by
+    simpa [CD.iteratedDeriv_of_le, CD.deriv, ← iteratedDeriv_succ'] using f.integrable (Nat.succ_le_succ hk)
 
 lemma hasDerivAt (f : W1 (n + 1) E) (x : ℝ) : HasDerivAt f (f.deriv x) x := f.toCD.hasDerivAt _
 
@@ -289,7 +321,7 @@ def sub (f g : W1 n E) : W1 n E where
   integrable k hk := by
     have hf : ContDiff ℝ k f := f.smooth.of_le (by simp [hk])
     have hg : ContDiff ℝ k g := g.smooth.of_le (by simp [hk])
-    simpa [iteratedDeriv_sub hf hg] using (f.integrable hk).sub (g.integrable hk)
+    simpa [CD.iteratedDeriv_of_le, iteratedDeriv_sub hf hg] using (f.integrable hk).sub (g.integrable hk)
 
 instance : Sub (W1 n E) where sub := sub
 
@@ -320,22 +352,62 @@ noncomputable def norm (n : ℕ) (f : ℝ → E) : ℝ :=
 
 noncomputable instance : Norm (W1 n E) where norm f := norm n f
 
+lemma norm_nonneg {f : W1 n E} : 0 ≤ ‖f‖ := by
+  simp [Norm.norm, norm] ; positivity
+
 lemma norm_succ (f : W1 (n + 1) E) : ‖f‖ = (∫ v, ‖f v‖) + ‖f.deriv‖ := by
   simp [Norm.norm, norm, deriv, CD.deriv, ← iteratedDeriv_succ', Finset.sum_range_succ' _ (n + 1)] ; ring
+
+lemma integral_norm_le_norm (f : W1 n E) : (∫ v, ‖f v‖) ≤ ‖f‖ := by
+  have l1 i (_ : i ∈ Finset.range (n + 1)) : 0 ≤ ∫ (v : ℝ), ‖iteratedDeriv i f.toFun v‖ := by positivity
+  have l2 : 0 ∈ Finset.range (n + 1) := by simp
+  exact Finset.single_le_sum l1 l2
 
 lemma norm_mul0 (g : CS n ℝ) (f : W1 n E) : ∫ (v : ℝ), ‖(g • f) v‖ ≤ ‖g‖ * ∫ (v : ℝ), ‖f v‖ := by
   convert_to ∫ v, ‖g v • f v‖ ≤ ‖g‖ * (∫ v, ‖f v‖) using 0
   rw [← integral_mul_left] ; refine integral_mono (g • f).integrable'.norm (by fun_prop) ?_
   intro v ; simp [norm_smul] ; gcongr ; exact g.le_norm v
 
-theorem norm_mul (g : CS n ℝ) (f : W1 n E) : ‖g • f‖ ≤ ‖g‖ * ‖f‖ := by
+def of_succ (f : W1 (n + 1) E) : W1 n E := ⟨f.toCD, fun k hk => f.integrable (by omega)⟩
+
+instance : Coe (W1 (n + 1) E) (W1 n E) where coe := of_succ
+
+def add (f g : W1 n E) : W1 n E := by
+  refine ⟨f.toCD + g.toCD, fun k hk => ?_⟩
+  have l1 := f.integrable hk
+  have l2 := g.integrable hk
+  have l3 := l1.add l2
+  convert l3 ; ext x ; simp [CD.iteratedDeriv_of_le]
+  have := Nat.le.dest hk ; simp_rw [add_comm k] at this ; obtain ⟨l, rfl⟩ := this
+  exact @CD.iteratedDeriv_add' E _ _ l k f g x
+
+instance : Add (W1 n E) where add := add
+
+lemma deriv_mul {g : CS (n + 1) ℝ} {f : W1 (n + 1) E} :
+    (g • f).deriv = g.of_succ • f.deriv + g.deriv • f.of_succ := by
+  ext x ; apply _root_.deriv_smul
+  · exact g.smooth.differentiable (by simp) |>.differentiableAt
+  · exact f.smooth.differentiable (by simp) |>.differentiableAt
+
+lemma norm_add_le {f g : W1 n E} : ‖f + g‖ ≤ ‖f‖ + ‖g‖ := by
+  sorry
+
+theorem norm_mul (g : CS n ℝ) (f : W1 n E) : ‖g • f‖ ≤ (2 ^ (n + 1) - 1) * (‖g‖ * ‖f‖) := by
   induction n with
-  | zero => simpa [Norm.norm, norm] using norm_mul0 g f
+  | zero => norm_num ; simpa [Norm.norm, norm] using norm_mul0 g f
   | succ n ih =>
-    simp [norm_succ, mul_add] ; apply add_le_add (norm_mul0 g f)
-    specialize ih g
-    have := @CD.deriv_smul E _ _ n g f
-    rw [deriv]
+    have l3 := norm_mul0 g f
+    have l4 := integral_norm_le_norm f
+    have key1 : ∫ (v : ℝ), ‖(g • f).toFun v‖ ≤ ‖g‖ * ‖f‖ := by apply l3.trans ; gcongr ; apply CS.norm_nonneg
+    rw [norm_succ, deriv_mul, pow_succ]
+    rw [add_comm, norm_succ, add_mul, one_mul]
+    apply add_le_add l5
+    rw [deriv_mul] ; apply norm_add_le.trans
+    have l1 := ih g.of_succ f.deriv
+    have l2 := ih g.deriv f.of_succ
+    have key := add_le_add l1 l2
+    apply key.trans
+
     sorry
 
 theorem W1_approximation (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
