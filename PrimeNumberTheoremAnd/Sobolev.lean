@@ -308,6 +308,19 @@ lemma iteratedDeriv_sub {f g : ℝ → E} (hf : ContDiff ℝ n f) (hg : ContDiff
       · exact (hg.differentiable (by simp)).differentiableAt
     simp_rw [iteratedDeriv_succ', ← ih hf' hg', hfg]
 
+lemma iteratedDeriv_add {f g : ℝ → E} (hf : ContDiff ℝ n f) (hg : ContDiff ℝ n g) :
+    iteratedDeriv n (f + g) = iteratedDeriv n f + iteratedDeriv n g := by
+  induction n generalizing f g with
+  | zero => rfl
+  | succ n ih =>
+    have hf' : ContDiff ℝ n (deriv f) := hf.iterate_deriv' n 1
+    have hg' : ContDiff ℝ n (deriv g) := hg.iterate_deriv' n 1
+    have hfg : deriv (f + g) = deriv f + deriv g := by
+      ext x ; apply deriv_add
+      · exact (hf.differentiable (by simp)).differentiableAt
+      · exact (hg.differentiable (by simp)).differentiableAt
+    simp_rw [iteratedDeriv_succ', ← ih hf' hg', hfg]
+
 noncomputable def deriv (f : W1 (n + 1) E) : W1 n E where
   toCD := f.toCD.deriv
   integrable k hk := by
@@ -347,16 +360,23 @@ def smul (g : CS n ℝ) (f : W1 n E) : W1 n E := by
 
 instance : SMul (CS n ℝ) (W1 n E) where smul := smul
 
+noncomputable def norm1 (f : ℝ → E) : ℝ := ∫ v, ‖f v‖
+
+lemma norm1_add {f g : ℝ → E} (hf : Integrable f) (hg : Integrable g) :
+    norm1 (f + g) ≤ norm1 f + norm1 g := by
+  rw [norm1, norm1, norm1, ← integral_add' hf.norm hg.norm]
+  apply integral_mono (by fun_prop) (by fun_prop) ; intro t ; simp ; apply norm_add_le
+
 noncomputable def norm (n : ℕ) (f : ℝ → E) : ℝ :=
-  ∑ k in Finset.range (n + 1), ∫ v, ‖iteratedDeriv k f v‖
+  ∑ k in Finset.range (n + 1), norm1 (iteratedDeriv k f)
 
 noncomputable instance : Norm (W1 n E) where norm f := norm n f
 
 lemma norm_nonneg {f : W1 n E} : 0 ≤ ‖f‖ := by
-  simp [Norm.norm, norm] ; positivity
+  simp [Norm.norm, norm, norm1] ; positivity
 
 lemma norm_succ (f : W1 (n + 1) E) : ‖f‖ = (∫ v, ‖f v‖) + ‖f.deriv‖ := by
-  simp [Norm.norm, norm, deriv, CD.deriv, ← iteratedDeriv_succ', Finset.sum_range_succ' _ (n + 1)] ; ring
+  simp [Norm.norm, norm, norm1, deriv, CD.deriv, ← iteratedDeriv_succ', Finset.sum_range_succ' _ (n + 1)] ; ring
 
 lemma integral_norm_le_norm (f : W1 n E) : (∫ v, ‖f v‖) ≤ ‖f‖ := by
   have l1 i (_ : i ∈ Finset.range (n + 1)) : 0 ≤ ∫ (v : ℝ), ‖iteratedDeriv i f.toFun v‖ := by positivity
@@ -390,7 +410,14 @@ lemma deriv_mul {g : CS (n + 1) ℝ} {f : W1 (n + 1) E} :
   · exact f.smooth.differentiable (by simp) |>.differentiableAt
 
 lemma norm_add_le {f g : W1 n E} : ‖f + g‖ ≤ ‖f‖ + ‖g‖ := by
-  sorry
+  simp [Norm.norm, norm, ← Finset.sum_add_distrib] ; apply Finset.sum_le_sum ; intro k hk
+  have lk : k ≤ n := by simp at hk ; omega
+  have l1 : ContDiff ℝ k f := by apply f.smooth.of_le ; simp [lk]
+  have l2 : ContDiff ℝ k g := by apply g.smooth.of_le ; simp [lk]
+  have l3 : Integrable (iteratedDeriv k f) := by apply f.integrable lk
+  have l4 : Integrable (iteratedDeriv k g) := by apply g.integrable lk
+  change norm1 (iteratedDeriv k (⇑f + ⇑g)) ≤ _
+  rw [iteratedDeriv_add l1 l2] ; apply norm1_add l3 l4
 
 theorem norm_mul (g : CS n ℝ) (f : W1 n E) : ‖g • f‖ ≤ (2 ^ (n + 1) - 1) * (‖g‖ * ‖f‖) := by
   induction n with
