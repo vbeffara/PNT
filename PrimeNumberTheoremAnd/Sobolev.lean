@@ -452,10 +452,11 @@ theorem norm_mul (g : CS n ℝ) (f : W1 n E) : ‖g • f‖ ≤ (2 ^ (n + 1) - 
   induction n with
   | zero => norm_num ; simpa [Norm.norm, norm] using norm_mul0 g f
   | succ n ih =>
-    have l3 := norm_mul0 g f
-    have l4 := integral_norm_le_norm f
-    have l5 : (0 : ℝ) ≤ 2 ^ (n + 1) - 1 := by simp ; norm_cast ; apply Nat.one_le_pow'
-    have key1 : norm1 (g • f) ≤ ‖g‖ * ‖f‖ := by apply l3.trans ; gcongr ; apply CS.norm_nonneg
+    have l1 : (0 : ℝ) ≤ 2 ^ (n + 1) - 1 := by simp ; norm_cast ; apply Nat.one_le_pow'
+    have key1 : norm1 (g • f) ≤ ‖g‖ * ‖f‖ := by
+      apply norm_mul0 g f |>.trans
+      have := integral_norm_le_norm f
+      gcongr ; apply CS.norm_nonneg
     have key2 : ‖CS.of_succ g • deriv f‖ ≤ (2 ^ (n + 1) - 1) * (‖g‖ * ‖f‖) := by
       apply ih g.of_succ f.deriv |>.trans
       have := f.norm_deriv
