@@ -4,7 +4,7 @@ import Mathlib.Order.Filter.ZeroAndBoundedAtFilter
 
 open Real Complex MeasureTheory Filter Topology BoundedContinuousFunction SchwartzMap  BigOperators Set
 
-attribute [fun_prop] Integrable Integrable.norm Integrable.const_mul Integrable.add
+attribute [fun_prop] Integrable Integrable.norm Integrable.const_mul Integrable.add Integrable.sub
 attribute [fun_prop] AEStronglyMeasurable Continuous.aestronglyMeasurable
 attribute [fun_prop] HasCompactSupport HasCompactSupport.smul_right HasCompactSupport.smul_right HasCompactSupport.mul_left
 
@@ -209,6 +209,9 @@ noncomputable nonrec def scale (g : CS n E) (R : ℝ) : CS n E := by
 nonrec lemma deriv_scale {f : CS (n + 1) E} : (f.scale R).deriv = R⁻¹ • f.deriv.scale R := by
   apply ext_CD ; exact CD.deriv_scale
 
+nonrec lemma of_succ_scale {f : CS (n + 1) E} : f.of_succ.scale R = (f.scale R).of_succ := by
+  ext ; by_cases hR : R = 0 <;> simp [scale, CD.scale, of_succ, of_le, CD.of_le, hR]
+
 @[simp] lemma deriv_scale' {f : CS (n + 1) E} : (f.scale R).deriv v = R⁻¹ • f.deriv (R⁻¹ • v) := CD.deriv_scale'
 
 lemma hasDerivAt_scale (f : CS (n + 1) E) (R x : ℝ) :
@@ -355,6 +358,8 @@ def sub (f g : W1 n E) : W1 n E where
 
 instance : Sub (W1 n E) where sub := sub
 
+@[simp] lemma sub_apply (f g : W1 n E) (x : ℝ) : (f - g) x = f x - g x := rfl
+
 lemma integrable_iteratedDeriv_Schwarz {f : 𝓢(ℝ, ℂ)} : Integrable (iteratedDeriv n f) := by
   induction n generalizing f with
   | zero => exact f.integrable
@@ -384,6 +389,11 @@ lemma L1_norm_add {f g : ℝ → E} (hf : Integrable f) (hg : Integrable g) :
   rw [L1_norm, L1_norm, L1_norm, ← integral_add' hf.norm hg.norm]
   apply integral_mono (by fun_prop) (by fun_prop) ; intro t ; simp ; apply norm_add_le
 
+lemma L1_norm_sub {f g : ℝ → E} (hf : Integrable f) (hg : Integrable g) :
+    L1_norm (f - g) ≤ L1_norm f + L1_norm g := by
+  rw [L1_norm, L1_norm, L1_norm, ← integral_add' hf.norm hg.norm]
+  apply integral_mono (by fun_prop) (by fun_prop) ; intro t ; simp ; apply norm_sub_le
+
 noncomputable def norm1 (f : W1 n E) : ℝ := L1_norm ⇑f
 
 lemma norm1_nonneg (f : W1 n E) : 0 ≤ norm1 f := by
@@ -393,6 +403,8 @@ noncomputable def norm (n : ℕ) (f : ℝ → E) : ℝ :=
   ∑ k in Finset.range (n + 1), L1_norm (iteratedDeriv k f)
 
 noncomputable instance : Norm (W1 n E) where norm f := norm n f
+
+@[simp] lemma norm_of_zero (f : W1 0 E) : ‖f‖ = L1_norm f := by simp [Norm.norm, norm]
 
 lemma norm_nonneg {f : W1 n E} : 0 ≤ ‖f‖ := by
   simp [Norm.norm, norm, L1_norm] ; positivity
@@ -432,6 +444,11 @@ def add (f g : W1 n E) : W1 n E := by
 
 instance : Add (W1 n E) where add := add
 
+@[simp] lemma add_apply (f g : W1 n E) (x : ℝ) : (f + g) x = f x + g x := rfl
+
+nonrec lemma deriv_sub (f g : W1 (n + 1) E) : (f - g).deriv = f.deriv - g.deriv := by
+  ext x ; exact deriv_sub f.differentiable.differentiableAt g.differentiable.differentiableAt
+
 lemma deriv_smul {g : CS (n + 1) ℝ} {f : W1 (n + 1) E} :
     (g • f).deriv = g.of_succ • f.deriv + g.deriv • f.of_succ := by
   ext x ; apply _root_.deriv_smul
@@ -447,6 +464,16 @@ lemma norm_add_le {f g : W1 n E} : ‖f + g‖ ≤ ‖f‖ + ‖g‖ := by
   have l4 : Integrable (iteratedDeriv k g) := by apply g.integrable lk
   change L1_norm (iteratedDeriv k (⇑f + ⇑g)) ≤ _
   rw [iteratedDeriv_add l1 l2] ; apply L1_norm_add l3 l4
+
+lemma norm_sub_le {f g : W1 n E} : ‖f - g‖ ≤ ‖f‖ + ‖g‖ := by
+  simp [Norm.norm, norm, ← Finset.sum_add_distrib] ; apply Finset.sum_le_sum ; intro k hk
+  have lk : k ≤ n := by simp at hk ; omega
+  have l1 : ContDiff ℝ k f := by apply f.smooth.of_le ; simp [lk]
+  have l2 : ContDiff ℝ k g := by apply g.smooth.of_le ; simp [lk]
+  have l3 : Integrable (iteratedDeriv k f) := by apply f.integrable lk
+  have l4 : Integrable (iteratedDeriv k g) := by apply g.integrable lk
+  change L1_norm (iteratedDeriv k (⇑f - ⇑g)) ≤ _
+  rw [iteratedDeriv_sub l1 l2] ; apply L1_norm_sub l3 l4
 
 theorem norm_mul (g : CS n ℝ) (f : W1 n E) : ‖g • f‖ ≤ (2 ^ (n + 1) - 1) * (‖g‖ * ‖f‖) := by
   induction n with
@@ -472,9 +499,44 @@ theorem norm_mul (g : CS n ℝ) (f : W1 n E) : ‖g • f‖ ≤ (2 ^ (n + 1) - 
       convert add_le_add key2 key3 using 1 ; simp [pow_succ] ; ring
     rw [norm_succ] ; convert add_le_add key1 key4 using 1 ; simp [pow_succ] ; ring
 
+lemma approx0 (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
+    Tendsto (fun R ↦ norm1 (f - CS.scale g R • f)) atTop (𝓝 0) := by
+
+  let F R x := ‖(f - CS.scale g R • f) x‖
+  let bound x := (1 + ‖g‖) * ‖f x‖
+  have l1 : ∀ᶠ (R : ℝ) in atTop, AEStronglyMeasurable (F R) volume := by
+    apply eventually_of_forall ; intro R
+    exact Continuous.aestronglyMeasurable (by continuity)
+  have l2 : ∀ᶠ R in atTop, ∀ᵐ x, ‖F R x‖ ≤ bound x := by
+    filter_upwards [eventually_ne_atTop 0] with R hR
+    apply eventually_of_forall ; intro x
+    convert_to ‖f x - (CS.scale g R • f) x‖ ≤ ‖f x‖ + ‖g‖ * ‖f x‖
+    · simp [F]
+    · simp [bound] ; ring
+    apply (_root_.norm_sub_le _ _).trans ; gcongr
+    change ‖CS.scale g R x • f x‖ ≤ ‖g‖ * ‖f.toFun x‖ ; simp [norm_smul] ; gcongr
+    simpa [CS.scale, CD.scale, hR, funscale] using CS.le_norm g (R⁻¹ * x)
+  have l3 : Integrable bound volume := f.integrable'.norm.const_mul _
+  have l4 : ∀ᵐ (a : ℝ), Tendsto (fun n ↦ F n a) atTop (𝓝 0) := by
+    apply eventually_of_forall ; intro x
+    simpa [hg] using (((g.tendsto_scale x).smul_const (f x)).const_sub (f x)).norm
+  simpa using tendsto_integral_filter_of_dominated_convergence bound l1 l2 l3 l4
+
 theorem W1_approximation (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
     Tendsto (fun R => ‖f - g.scale R • f‖) atTop (𝓝 0) := by
-  sorry
+
+  induction n with
+  | zero => simpa using approx0 f g hg
+  | succ n ih =>
+    simp_rw [norm_succ] ; apply ZeroAtFilter.add (approx0 f g hg)
+    simp_rw [deriv_sub, deriv_smul]
+    convert_to ZeroAtFilter atTop fun R ↦
+        ‖(deriv f - CS.of_succ (CS.scale g R) • deriv f) - CS.deriv (CS.scale g R) • of_succ f‖
+        using 1
+    · ext R ; congr 1 ; ext x ; simp [sub_sub]
+    simp_rw [← CS.of_succ_scale, CS.deriv_scale]
+    have key1 := ih f.deriv g.of_succ hg
+    sorry
 
 end W1
 
@@ -540,6 +602,8 @@ lemma approx_aux2 {f : ℝ → E} {g : ℝ → ℝ} (h1 : Integrable f)
     apply eventually_of_forall ; intro x
     simpa [h4] using tendsto_funscale h3.continuousAt x |>.const_sub 1 |>.smul_const (f x) |>.norm
   simpa [F] using tendsto_integral_filter_of_dominated_convergence _ l1 l2 h1.norm l4
+
+#exit
 
 theorem W21_approximation (f : W21) (g : trunc) :
     Tendsto (fun R => ‖f - g.scale R • f‖) atTop (𝓝 0) := by
