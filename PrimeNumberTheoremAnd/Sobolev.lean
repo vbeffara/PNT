@@ -246,7 +246,7 @@ noncomputable def norm (f : CS n E) : ℝ :=
 
 noncomputable instance : Norm (CS n E) where norm := norm
 
-nonrec lemma norm_nonneg : 0 ≤ ‖f‖ := by
+@[simp] nonrec lemma norm_nonneg : 0 ≤ ‖f‖ := by
   simp [Norm.norm, norm] ; use 0 ; simp
   apply (norm_nonneg (f 0)).trans
   apply le_ciSup (f := fun x => ‖f x‖) bounded'
@@ -275,6 +275,10 @@ lemma norm_succ {f : CS (n + 1) E} : ‖f‖ = (⨆ v, ‖f v‖) ⊔ ‖f.deriv
   simp [← l1, l2, ← l3]
 
 lemma norm_deriv (f : CS (n + 1) E) : ‖f.deriv‖ ≤ ‖f‖ := by simp [norm_succ]
+
+lemma norm_smul (c : ℝ) (f : CS n E) : ‖c • f‖ = |c| * ‖f‖ := by sorry
+
+lemma norm_scale (R : ℝ) (hR : R ≠ 0) (f : CS n E) : ‖f.scale R‖ = ‖f‖ := sorry
 
 end CS
 
@@ -406,7 +410,7 @@ noncomputable instance : Norm (W1 n E) where norm f := norm n f
 
 @[simp] lemma norm_of_zero (f : W1 0 E) : ‖f‖ = L1_norm f := by simp [Norm.norm, norm]
 
-lemma norm_nonneg {f : W1 n E} : 0 ≤ ‖f‖ := by
+@[simp] lemma norm_nonneg {f : W1 n E} : 0 ≤ ‖f‖ := by
   simp [Norm.norm, norm, L1_norm] ; positivity
 
 lemma norm_succ (f : W1 (n + 1) E) : ‖f‖ = norm1 f + ‖f.deriv‖ := by
@@ -534,9 +538,28 @@ theorem W1_approximation (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
         ‖(deriv f - CS.of_succ (CS.scale g R) • deriv f) - CS.deriv (CS.scale g R) • of_succ f‖
         using 1
     · ext R ; congr 1 ; ext x ; simp [sub_sub]
-    simp_rw [← CS.of_succ_scale, CS.deriv_scale]
+    simp_rw [← CS.of_succ_scale, CS.deriv_scale, ZeroAtFilter]
     have key1 := ih f.deriv g.of_succ hg
-    sorry
+    rw [Metric.tendsto_nhds] at key1 ⊢ ; intro ε hε
+    specialize key1 (ε / 2) (by positivity)
+    have key2 : ∀ᶠ R in atTop, (2 ^ (n + 1) - 1) * R⁻¹ * ‖g‖ * ‖f‖ < ε / 2 := by
+      have := tendsto_inv_atTop_zero (𝕜 := ℝ) |>.const_mul (2 ^ (n + 1) - 1) |>.mul_const ‖g‖ |>.mul_const ‖f‖
+      simp at this ; apply eventually_lt_of_tendsto_lt _ this ; positivity
+    filter_upwards [key1, key2, eventually_gt_atTop 0] with R key1 key2 hR
+    simp at key1 ⊢ ; rw [abs_eq_self.mpr (W1.norm_nonneg)] at key1 ⊢
+    apply norm_sub_le.trans_lt
+    convert_to _ < ε / 2 + ε / 2 ; ring
+    gcongr
+    apply norm_mul _ _ |>.trans_lt
+    refine LE.le.trans_lt ?_ key2
+    have : (0 : ℝ) ≤ 2 ^ (n + 1) - 1 := by simp ; norm_cast ; apply Nat.one_le_pow'
+    convert_to (2 ^ (n + 1) - 1) * ‖R⁻¹ • CS.scale (CS.deriv g) R‖ * ‖of_succ f‖ ≤
+      (2 ^ (n + 1) - 1) * (R⁻¹ * ‖g‖) * ‖f‖ ; ring ; ring
+    gcongr ; simp ; apply mul_nonneg ; linarith ; apply mul_nonneg ; positivity ; simp
+    · simp [CS.norm_smul] ; gcongr ; simp ; rw [abs_eq_self.mpr] ; positivity
+      rw [CS.norm_scale _ hR.ne.symm]
+      apply CS.norm_deriv
+    · apply norm_of_succ
 
 end W1
 
@@ -602,8 +625,6 @@ lemma approx_aux2 {f : ℝ → E} {g : ℝ → ℝ} (h1 : Integrable f)
     apply eventually_of_forall ; intro x
     simpa [h4] using tendsto_funscale h3.continuousAt x |>.const_sub 1 |>.smul_const (f x) |>.norm
   simpa [F] using tendsto_integral_filter_of_dominated_convergence _ l1 l2 h1.norm l4
-
-#exit
 
 theorem W21_approximation (f : W21) (g : trunc) :
     Tendsto (fun R => ‖f - g.scale R • f‖) atTop (𝓝 0) := by
