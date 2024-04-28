@@ -272,11 +272,31 @@ lemma norm_succ {f : CS (n + 1) E} : ‖f‖ = (⨆ v, ‖f v‖) ⊔ ‖deriv f
   have l3 : insert 0 (Finset.Ico 1 (n + 2)) = Finset.range (n + 2) := by ext i ; simp ; omega
   simp [← l1, l2, ← l3]
 
-lemma norm_deriv (f : CS (n + 1) E) : ‖deriv f‖ ≤ ‖f‖ := by simp [norm_succ]
+lemma norm_deriv (f : CS (n + 1) E) : ‖deriv f‖ ≤ ‖f‖ := by
+  simp only [norm_succ, le_sup_right]
 
-lemma norm_smul (c : ℝ) (f : CS n E) : ‖c • f‖ = |c| * ‖f‖ := by sorry
+nonrec lemma norm_smul (c : ℝ) (f : CS n E) : ‖c • f‖ = |c| * ‖f‖ := by
+  simp [Norm.norm, norm]
+  have l1 (x y : ℝ) : |c| * (x ⊔ y) = |c| * x ⊔ |c| * y := by
+    apply mul_max_of_nonneg ; apply abs_nonneg
+  have := @Finset.comp_sup'_eq_sup'_comp ℝ ℕ ℝ _ _ (.range (n + 1)) (by simp)
+    (fun k => ⨆ v, ‖iteratedDeriv k f v‖) (fun x => |c| * x) l1 ; simp at this ; rw [this]
+  apply Finset.sup'_congr ; rfl ; intro k hk ; simp at hk
+  rw [Real.mul_iSup_of_nonneg (abs_nonneg _)] ; congr ; ext x
+  simp [iteratedDeriv_eq_iteratedFDeriv]
+  rw [iteratedFDeriv_const_smul_apply (f.1.2.of_le (by simp ; omega))]
+  simp [norm_smul]
 
-lemma norm_scale (R : ℝ) (hR : R ≠ 0) (f : CS n E) : ‖scale f R‖ = ‖f‖ := sorry
+lemma norm_scale (R : ℝ) (hR : 1 ≤ R) (f : CS n E) : ‖scale f R‖ ≤ ‖f‖ := by
+  simp_rw [Norm.norm, norm]
+  apply Finset.sup'_le ; intro k hk ; apply Finset.le_sup'_of_le _ hk ; simp at hk
+  apply ciSup_le ; intro x ; apply le_ciSup_of_le (bounded'_of_le (by omega)) (R⁻¹ * x)
+  have l1 : R ≠ 0 := by positivity
+  have l2 : ContDiff ℝ k f := f.1.2.of_le (by simp ; omega)
+  simp [scale, CD.scale, l1] ; unfold funscale ; simp [iteratedDeriv_const_smul l2, _root_.norm_smul]
+  convert_to _ ≤ 1 * ‖iteratedDeriv k (↑↑f) (R⁻¹ * x)‖ ; simp
+  gcongr ; apply inv_le_one ; apply one_le_pow_of_one_le
+  rw [abs_eq_self.mpr (by positivity)] ; exact hR
 
 instance : SMul (CS n ℝ) (CD n E) := sorry
 
@@ -524,7 +544,8 @@ theorem W1_approximation (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
   induction n with
   | zero =>
     convert approx0 f g hg
-    ext f ; simp [Norm.norm, norm] ; rfl
+    ext f ; simp only [Norm.norm, norm, Nat.zero_eq, zero_add, Finset.range_one,
+      Finset.sum_singleton, iteratedDeriv_zero] ; rfl
   | succ n ih =>
     simp_rw [norm_succ] ; apply ZeroAtFilter.add (approx0 f g hg)
     simp_rw [deriv_sub, deriv_smul]
@@ -539,7 +560,7 @@ theorem W1_approximation (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
     have key2 : ∀ᶠ R in atTop, (2 ^ (n + 1) - 1) * R⁻¹ * ‖g‖ * ‖f‖ < ε / 2 := by
       have := tendsto_inv_atTop_zero (𝕜 := ℝ) |>.const_mul (2 ^ (n + 1) - 1) |>.mul_const ‖g‖ |>.mul_const ‖f‖
       simp at this ; apply eventually_lt_of_tendsto_lt _ this ; positivity
-    filter_upwards [key1, key2, eventually_gt_atTop 0] with R key1 key2 hR
+    filter_upwards [key1, key2, eventually_ge_atTop 1] with R key1 key2 hR
     haveI : AddGroup (W1 n E) := AddCommGroup.toAddGroup
     simp only [dist_zero_right, Real.norm_eq_abs] at key1 ⊢
     rw [abs_eq_self.mpr (W1.norm_nonneg)] at key1 ⊢
@@ -553,9 +574,11 @@ theorem W1_approximation (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
       (2 ^ (n + 1) - 1) * (R⁻¹ * ‖g‖) * ‖f‖ ; ring ; ring
     gcongr ; simp ; apply mul_nonneg ; linarith ; apply mul_nonneg ; positivity ; simp
     · simp [CS.norm_smul] ; gcongr ; simp ; rw [abs_eq_self.mpr] ; positivity
-      rw [CS.norm_scale _ hR.ne.symm]
+      apply CS.norm_scale R hR (CS.deriv g) |>.trans
       apply CS.norm_deriv
     · apply norm_of_succ
+
+#print axioms W1_approximation
 
 end W1
 
@@ -696,3 +719,5 @@ theorem W21_approximation (f : W21) (g : trunc) :
     · simpa [h] using ((CS.tendsto_scale (g : CS 2 ℝ) v).const_sub 1).ofReal.mul tendsto_const_nhds
 
   simpa using tendsto_integral_filter_of_dominated_convergence bound e1 e2 e3 e4
+
+#print axioms W21_approximation
