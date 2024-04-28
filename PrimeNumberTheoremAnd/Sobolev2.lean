@@ -298,8 +298,6 @@ lemma norm_scale (R : ℝ) (hR : 1 ≤ R) (f : CS n E) : ‖scale f R‖ ≤ ‖
   gcongr ; apply inv_le_one ; apply one_le_pow_of_one_le
   rw [abs_eq_self.mpr (by positivity)] ; exact hR
 
-instance : SMul (CS n ℝ) (CD n E) := sorry
-
 end CS
 
 structure trunc where
@@ -552,7 +550,9 @@ theorem W1_approximation (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
     convert_to ZeroAtFilter atTop fun R ↦
         ‖(deriv f - CS.of_succ (CS.scale g R) • deriv f) - CS.deriv (CS.scale g R) • of_succ f‖
         using 1
-    · ext R ; congr 1 ; ext x ; simp [sub_sub]
+    · ext R ; congr 1 ; ext x
+      simp only [AddSubgroupClass.coe_sub, AddSubmonoid.coe_add,
+        Submodule.coe_toAddSubmonoid, Pi.sub_apply, Pi.add_apply, sub_sub]
     simp_rw [← CS.of_succ_scale, CS.deriv_scale, ZeroAtFilter]
     have key1 := ih (deriv f) (CS.of_succ g) hg
     rw [Metric.tendsto_nhds] at key1 ⊢ ; intro ε hε
@@ -653,7 +653,9 @@ theorem W21_approximation (f : W21) (g : trunc) :
   -- Setup
   let G R : CS 2 ℝ := CS.scale g R ; let h R v := 1 - G R v
   convert_to Tendsto (fun R => W21.norm (fun v => h R v * f v)) atTop (𝓝 0)
-  · ext R ; change W21.norm _ = _ ; congr ; ext v ; simp [h, sub_mul] ; rfl
+  · ext R ; change W21.norm _ = _ ; congr ; ext v
+    simp only [AddSubgroupClass.coe_sub, Pi.sub_apply, ofReal_sub, ofReal_one, sub_mul, one_mul,
+      sub_right_inj, h] ; rfl
 
   -- Take care of the first piece
   rw [show (0 : ℝ) = 0 + ((4 * π ^ 2)⁻¹ : ℝ) * 0 by simp]
