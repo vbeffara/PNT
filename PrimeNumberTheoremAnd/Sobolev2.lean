@@ -10,11 +10,11 @@ attribute [fun_prop] HasCompactSupport HasCompactSupport.smul_right HasCompactSu
 
 variable {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E] {k n : ℕ} {𝕜 : Type*} [RCLike 𝕜]
 
-def CD (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : AddSubgroup (ℝ → E) where
+def CD (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : Subspace ℝ (ℝ → E) where
   carrier := {f | ContDiff ℝ n f}
   zero_mem' := by change ContDiff ℝ (↑n) (fun _ => 0) ; apply contDiff_const
   add_mem' hf hg := hf.add hg
-  neg_mem' hf := by simp at hf ⊢ ; exact hf.neg
+  smul_mem' c f hf := hf.const_smul c
 
 section lemmas
 
@@ -52,12 +52,6 @@ def of_succ (f : CD (n + 1) E) : CD n E := ⟨f, f.2.of_succ⟩
 
 instance : Coe (CD (n + 1) E) (CD n E) where coe f := of_succ f
 
-def const_smul (R : ℝ) (f : CD n E) : CD n E := ⟨R • f, f.2.const_smul R⟩
-
-instance : HSMul ℝ (CD n E) (CD n E) where hSMul := const_smul
-
-@[simp] lemma smul_apply : (R • f) x = R • f x := rfl
-
 @[continuity, fun_prop] lemma continuous (f : CD n E) : Continuous f := f.2.continuous
 
 noncomputable nonrec def deriv (f : CD (n + 1) E) : CD n E := ⟨deriv f, (contDiff_succ_iff_deriv.mp f.2).2⟩
@@ -77,7 +71,7 @@ noncomputable def scale (g : CD n E) (R : ℝ) : CD n E := by
 
 lemma deriv_scale {f : CD (n + 1) E} : deriv (scale f R) = R⁻¹ • scale (deriv f) R := by
   ext v ; by_cases hR : R = 0 <;> simp [hR, scale]
-  · simp [deriv, const_smul] ; exact deriv_const _ _
+  · simp [deriv] ; exact deriv_const _ _
   · exact ((hasDerivAt f (R⁻¹ • v)).scomp v (by simpa using (hasDerivAt_id v).const_smul R⁻¹)).deriv
 
 @[simp] lemma deriv_scale' {f : CD (n + 1) E} : deriv (scale f R) v = R⁻¹ • deriv f (R⁻¹ • v) := by
@@ -129,6 +123,9 @@ noncomputable def iteratedDeriv_of_le {n : ℕ} ⦃k : ℕ⦄ (hk : k ≤ n) (f 
 @[simp] lemma iteratedDeriv_of_le_neg (hk : k ≤ n) (f : CD n E) :
     iteratedDeriv_of_le hk (-f) = -iteratedDeriv_of_le hk f := sorry
 
+@[simp] lemma iteratedDeriv_of_le_smul (hk : k ≤ n) (c : ℝ) (f : CD n E) :
+    iteratedDeriv_of_le hk (c • f) = c • iteratedDeriv_of_le hk f := sorry
+
 nonrec lemma iteratedDeriv_succ {k : ℕ} {f : CD (n + (k + 1)) E} :
     iteratedDeriv (k + 1) f = iteratedDeriv k (deriv f) := by
   simp [iteratedDeriv, iteratedDeriv_succ'] ; rfl
@@ -151,11 +148,11 @@ lemma iteratedDeriv_add' {k : ℕ} {f g : CD (n + k) E} {x : ℝ} :
 
 end CD
 
-def CS (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : AddSubgroup (CD n E) where
+def CS (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : Subspace ℝ (CD n E) where
   carrier := {f | HasCompactSupport f}
   zero_mem' := by change HasCompactSupport (fun _ => 0) ; simp [HasCompactSupport, tsupport]
   add_mem' hf hg := hf.add hg
-  neg_mem' hf := by simpa [HasCompactSupport, tsupport] using hf
+  smul_mem' c f hf := hf.smul_left
 
 namespace CS
 
@@ -175,12 +172,6 @@ nonrec def of_le (f : CS n E) {m : ℕ} (hm : m ≤ n) : CS m E := ⟨CD.of_le f
 nonrec def of_succ (f : CS (n + 1) E) : CS n E := of_le f (by simp)
 
 instance : Coe (CS (n + 1) E) (CS n E) where coe := of_succ
-
-def smul (R : ℝ) (f : CS n E) : CS n E := ⟨R • f, f.2.smul_left⟩
-
-instance : HSMul ℝ (CS n E) (CS n E) where hSMul := smul
-
-@[simp] lemma smul_apply : (R • f) x = R • f x := rfl
 
 noncomputable nonrec def deriv (f : CS (n + 1) E) : CS n E := ⟨CD.deriv f, f.2.deriv⟩
 
@@ -296,8 +287,8 @@ lemma zero (g : trunc) : g =ᶠ[𝓝 0] 1 := by
 
 end trunc
 
-def W1 (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : AddSubgroup (CD n E) where
+def W1 (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : Subspace ℝ (CD n E) where
   carrier := {f | ∀ ⦃k : ℕ⦄ (hk : k ≤ n), Integrable (CD.iteratedDeriv_of_le hk f)}
   zero_mem' k hk := by simp ; exact integrable_zero ℝ E _
   add_mem' {f g} hf hg k hk := by simpa using (hf hk).add (hg hk)
-  neg_mem' {f} hf := by simpa using hf
+  smul_mem' c f hf k hk := by simpa using hf hk |>.smul c
