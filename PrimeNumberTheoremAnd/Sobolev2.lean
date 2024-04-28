@@ -2,6 +2,8 @@ import Mathlib.Analysis.Calculus.Deriv.Support
 import Mathlib.Analysis.Distribution.SchwartzSpace
 import Mathlib.Order.Filter.ZeroAndBoundedAtFilter
 
+set_option maxHeartbeats 20000000
+
 open Real Complex MeasureTheory Filter Topology BoundedContinuousFunction SchwartzMap  BigOperators Set
 
 attribute [fun_prop] Integrable Integrable.norm Integrable.const_mul Integrable.add Integrable.sub
@@ -262,6 +264,8 @@ lemma norm_smul (c : ℝ) (f : CS n E) : ‖c • f‖ = |c| * ‖f‖ := by sor
 
 lemma norm_scale (R : ℝ) (hR : R ≠ 0) (f : CS n E) : ‖scale f R‖ = ‖f‖ := sorry
 
+instance : SMul (CS n ℝ) (CD n E) := sorry
+
 end CS
 
 structure trunc where
@@ -473,8 +477,6 @@ theorem norm_mul (g : CS n ℝ) (f : W1 n E) : ‖g • f‖ ≤ (2 ^ (n + 1) - 
       convert add_le_add key2 key3 using 1 ; simp [pow_succ] ; ring
     rw [norm_succ] ; convert add_le_add key1 key4 using 1 ; simp [pow_succ] ; ring
 
-#exit
-
 lemma approx0 (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
     Tendsto (fun R ↦ norm1 (f - CS.scale g R • f)) atTop (𝓝 0) := by
 
@@ -482,27 +484,31 @@ lemma approx0 (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
   let bound x := (1 + ‖g‖) * ‖f x‖
   have l1 : ∀ᶠ (R : ℝ) in atTop, AEStronglyMeasurable (F R) volume := by
     apply eventually_of_forall ; intro R
-    exact Continuous.aestronglyMeasurable (by continuity)
+    apply Continuous.aestronglyMeasurable
+    fun_prop
   have l2 : ∀ᶠ R in atTop, ∀ᵐ x, ‖F R x‖ ≤ bound x := by
     filter_upwards [eventually_ne_atTop 0] with R hR
     apply eventually_of_forall ; intro x
     convert_to ‖f x - (CS.scale g R • f) x‖ ≤ ‖f x‖ + ‖g‖ * ‖f x‖
-    · simp [F]
+    · simp only [F, norm_norm] ; congr
     · simp [bound] ; ring
     apply (_root_.norm_sub_le _ _).trans ; gcongr
-    change ‖CS.scale g R x • f x‖ ≤ ‖g‖ * ‖f.toFun x‖ ; simp [norm_smul] ; gcongr
+    change ‖CS.scale g R x • f x‖ ≤ ‖g‖ * ‖f x‖ ; simp [norm_smul] ; gcongr
     simpa [CS.scale, CD.scale, hR, funscale] using CS.le_norm g (R⁻¹ * x)
-  have l3 : Integrable bound volume := f.integrable'.norm.const_mul _
+  have l3 : Integrable bound volume := (W1.integrable' f).norm.const_mul _
   have l4 : ∀ᵐ (a : ℝ), Tendsto (fun n ↦ F n a) atTop (𝓝 0) := by
     apply eventually_of_forall ; intro x
-    simpa [hg] using (((g.tendsto_scale x).smul_const (f x)).const_sub (f x)).norm
+    simpa [hg] using (((CS.tendsto_scale g x).smul_const (f x)).const_sub (f x)).norm
+  haveI : AddGroup (W1 n E) := AddCommGroup.toAddGroup
   simpa using tendsto_integral_filter_of_dominated_convergence bound l1 l2 l3 l4
 
 theorem W1_approximation (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
-    Tendsto (fun R => ‖f - g.scale R • f‖) atTop (𝓝 0) := by
+    Tendsto (fun R => ‖f - CS.scale g R • f‖) atTop (𝓝 0) := by
 
   induction n with
-  | zero => simpa using approx0 f g hg
+  | zero =>
+    convert approx0 f g hg
+    ext f ; simp [Norm.norm, norm] ; rfl
   | succ n ih =>
     simp_rw [norm_succ] ; apply ZeroAtFilter.add (approx0 f g hg)
     simp_rw [deriv_sub, deriv_smul]
@@ -511,14 +517,16 @@ theorem W1_approximation (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
         using 1
     · ext R ; congr 1 ; ext x ; simp [sub_sub]
     simp_rw [← CS.of_succ_scale, CS.deriv_scale, ZeroAtFilter]
-    have key1 := ih f.deriv g.of_succ hg
+    have key1 := ih (deriv f) (CS.of_succ g) hg
     rw [Metric.tendsto_nhds] at key1 ⊢ ; intro ε hε
     specialize key1 (ε / 2) (by positivity)
     have key2 : ∀ᶠ R in atTop, (2 ^ (n + 1) - 1) * R⁻¹ * ‖g‖ * ‖f‖ < ε / 2 := by
       have := tendsto_inv_atTop_zero (𝕜 := ℝ) |>.const_mul (2 ^ (n + 1) - 1) |>.mul_const ‖g‖ |>.mul_const ‖f‖
       simp at this ; apply eventually_lt_of_tendsto_lt _ this ; positivity
     filter_upwards [key1, key2, eventually_gt_atTop 0] with R key1 key2 hR
-    simp at key1 ⊢ ; rw [abs_eq_self.mpr (W1.norm_nonneg)] at key1 ⊢
+    haveI : AddGroup (W1 n E) := AddCommGroup.toAddGroup
+    simp only [dist_zero_right, Real.norm_eq_abs] at key1 ⊢
+    rw [abs_eq_self.mpr (W1.norm_nonneg)] at key1 ⊢
     apply norm_sub_le.trans_lt
     convert_to _ < ε / 2 + ε / 2 ; ring
     gcongr
@@ -536,3 +544,31 @@ theorem W1_approximation (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
 end W1
 
 abbrev W21 : Type _ := W1 2 ℂ
+
+namespace W21
+
+variable {f : W21}
+
+noncomputable def norm (f : ℝ → ℂ) : ℝ :=
+    (∫ v, ‖f v‖) + (4 * π ^ 2)⁻¹ * (∫ v, ‖deriv (deriv f) v‖)
+
+lemma norm_nonneg {f : ℝ → ℂ} : 0 ≤ norm f :=
+  add_nonneg (integral_nonneg (fun t => by simp))
+    (mul_nonneg (by positivity) (integral_nonneg (fun t => by simp)))
+
+noncomputable instance : Norm W21 where norm f := norm f
+
+noncomputable instance : Coe 𝓢(ℝ, ℂ) W21 where coe := W1.of_Schwartz
+
+instance : Coe (CS 2 ℂ) W21 where coe := fun f => f
+
+def mul_CSC_W21 (g : CS 2 ℂ) (f : W21) : CS 2 ℂ := ⟨⟨g * f, g.smooth.mul f.smooth⟩, g.compact.mul_right⟩
+
+instance : HMul (CS 2 ℂ) W21 (CS 2 ℂ) where hMul := mul_CSC_W21
+
+noncomputable instance : HMul (CS 2 ℝ) W21 (CS 2 ℂ) where
+  hMul g f := by
+    refine ⟨g * f, ?_⟩
+    apply HasCompactSupport.mul_right
+    exact @HasCompactSupport.comp_left ℝ ℝ ℂ _ _ _ ofReal' g g.2 rfl
+end W21

@@ -546,7 +546,8 @@ theorem W1_approximation (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
       have := tendsto_inv_atTop_zero (𝕜 := ℝ) |>.const_mul (2 ^ (n + 1) - 1) |>.mul_const ‖g‖ |>.mul_const ‖f‖
       simp at this ; apply eventually_lt_of_tendsto_lt _ this ; positivity
     filter_upwards [key1, key2, eventually_gt_atTop 0] with R key1 key2 hR
-    simp at key1 ⊢ ; rw [abs_eq_self.mpr (W1.norm_nonneg)] at key1 ⊢
+    simp only [dist_zero_right, Real.norm_eq_abs] at key1 ⊢
+    rw [abs_eq_self.mpr (W1.norm_nonneg)] at key1 ⊢
     apply norm_sub_le.trans_lt
     convert_to _ < ε / 2 + ε / 2 ; ring
     gcongr
