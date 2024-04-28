@@ -121,6 +121,14 @@ noncomputable def iteratedDeriv_of_le {n : ℕ} ⦃k : ℕ⦄ (hk : k ≤ n) (f 
   have := Nat.le.dest hk ; simp_rw [add_comm k] at this ; obtain ⟨l, rfl⟩ := this ; simp
   simpa [iteratedDeriv_eq_iterate] using f.2.iterate_deriv' l k
 
+@[simp] lemma iteratedDeriv_of_le_zero (hk : k ≤ n) : iteratedDeriv_of_le hk (0 : CD n E) = 0 := sorry
+
+@[simp] lemma iteratedDeriv_of_le_add (hk : k ≤ n) (f g : CD n E) :
+    iteratedDeriv_of_le hk (f + g) = iteratedDeriv_of_le hk f + iteratedDeriv_of_le hk g := sorry
+
+@[simp] lemma iteratedDeriv_of_le_neg (hk : k ≤ n) (f : CD n E) :
+    iteratedDeriv_of_le hk (-f) = -iteratedDeriv_of_le hk f := sorry
+
 nonrec lemma iteratedDeriv_succ {k : ℕ} {f : CD (n + (k + 1)) E} :
     iteratedDeriv (k + 1) f = iteratedDeriv k (deriv f) := by
   simp [iteratedDeriv, iteratedDeriv_succ'] ; rfl
@@ -290,6 +298,6 @@ end trunc
 
 def W1 (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : AddSubgroup (CD n E) where
   carrier := {f | ∀ ⦃k : ℕ⦄ (hk : k ≤ n), Integrable (CD.iteratedDeriv_of_le hk f)}
-  zero_mem' := sorry
-  add_mem' := sorry
-  neg_mem' := sorry
+  zero_mem' k hk := by simp ; exact integrable_zero ℝ E _
+  add_mem' {f g} hf hg k hk := by simpa using (hf hk).add (hg hk)
+  neg_mem' {f} hf := by simpa using hf
