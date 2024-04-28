@@ -264,3 +264,32 @@ lemma norm_smul (c : ℝ) (f : CS n E) : ‖c • f‖ = |c| * ‖f‖ := by sor
 lemma norm_scale (R : ℝ) (hR : R ≠ 0) (f : CS n E) : ‖scale f R‖ = ‖f‖ := sorry
 
 end CS
+
+structure trunc where
+  toFun : CS 2 ℝ
+  h3 : (Set.Icc (-1) (1)).indicator 1 ≤ ⇑toFun
+  h4 : ⇑toFun ≤ Set.indicator (Set.Ioo (-2) (2)) 1
+
+namespace trunc
+
+instance : CoeFun trunc (fun _ => ℝ → ℝ) where coe f := f.toFun
+
+instance : Coe trunc (CS 2 ℝ) where coe := toFun
+
+lemma nonneg (g : trunc) (x : ℝ) : 0 ≤ g x := (Set.indicator_nonneg (by simp) x).trans (g.h3 x)
+
+lemma le_one (g : trunc) (x : ℝ) : g x ≤ 1 := (g.h4 x).trans <| Set.indicator_le_self' (by simp) x
+
+lemma zero (g : trunc) : g =ᶠ[𝓝 0] 1 := by
+  have : Set.Icc (-1) 1 ∈ 𝓝 (0 : ℝ) := by apply Icc_mem_nhds <;> linarith
+  exact eventually_of_mem this (fun x hx => le_antisymm (g.le_one x) (by simpa [hx] using g.h3 x))
+
+@[simp] lemma zero_at {g : trunc} : g 0 = 1 := g.zero.eq_of_nhds
+
+end trunc
+
+def W1 (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : AddSubgroup (CD n E) where
+  carrier := {f | ∀ ⦃k : ℕ⦄ (hk : k ≤ n), Integrable (CD.iteratedDeriv_of_le hk f)}
+  zero_mem' := sorry
+  add_mem' := sorry
+  neg_mem' := sorry
