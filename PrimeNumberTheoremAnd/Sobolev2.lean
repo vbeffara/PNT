@@ -38,6 +38,11 @@ lemma tendsto_funscale {f : ℝ → E} (hf : ContinuousAt f 0) (x : ℝ) :
   | zero => exact hf
   | succ n ih => simpa [iteratedDeriv_succ] using ih.deriv
 
+@[simp] lemma iteratedDeriv_zero_fun : iteratedDeriv n (0 : ℝ → E) = 0 := by
+  induction n with
+  | zero => rfl
+  | succ n ih => simp [iteratedDeriv_succ, ih] ; apply deriv_const'
+
 end lemmas
 
 namespace CD
@@ -117,16 +122,25 @@ noncomputable def iteratedDeriv_of_le {n : ℕ} ⦃k : ℕ⦄ (hk : k ≤ n) (f 
   have := Nat.le.dest hk ; simp_rw [add_comm k] at this ; obtain ⟨l, rfl⟩ := this ; simp
   simpa [iteratedDeriv_eq_iterate] using f.2.iterate_deriv' l k
 
-@[simp] lemma iteratedDeriv_of_le_zero (hk : k ≤ n) : iteratedDeriv_of_le hk (0 : CD n E) = 0 := sorry
+@[simp] lemma iteratedDeriv_of_le_zero (hk : k ≤ n) : iteratedDeriv_of_le hk (0 : CD n E) = 0 := by
+  simp [iteratedDeriv_of_le]
 
 @[simp] lemma iteratedDeriv_of_le_add (hk : k ≤ n) (f g : CD n E) :
-    iteratedDeriv_of_le hk (f + g) = iteratedDeriv_of_le hk f + iteratedDeriv_of_le hk g := sorry
+    iteratedDeriv_of_le hk (f + g) = iteratedDeriv_of_le hk f + iteratedDeriv_of_le hk g := by
+  ext x ; simp [iteratedDeriv_of_le, iteratedDeriv_eq_iteratedFDeriv]
+  rw [iteratedFDeriv_add_apply] ; rfl
+  · apply f.2.of_le ; simp [hk]
+  · apply g.2.of_le ; simp [hk]
 
 @[simp] lemma iteratedDeriv_of_le_neg (hk : k ≤ n) (f : CD n E) :
-    iteratedDeriv_of_le hk (-f) = -iteratedDeriv_of_le hk f := sorry
+    iteratedDeriv_of_le hk (-f) = -iteratedDeriv_of_le hk f := by
+  ext x ; simp [iteratedDeriv_of_le] ; apply iteratedDeriv_neg
 
 @[simp] lemma iteratedDeriv_of_le_smul (hk : k ≤ n) (c : ℝ) (f : CD n E) :
-    iteratedDeriv_of_le hk (c • f) = c • iteratedDeriv_of_le hk f := sorry
+    iteratedDeriv_of_le hk (c • f) = c • iteratedDeriv_of_le hk f := by
+  ext x ; simp [iteratedDeriv_of_le, iteratedDeriv_eq_iteratedFDeriv]
+  rw [iteratedFDeriv_const_smul_apply] ; rfl
+  apply f.2.of_le ; simp [hk]
 
 nonrec lemma iteratedDeriv_succ {k : ℕ} {f : CD (n + (k + 1)) E} :
     iteratedDeriv (k + 1) f = iteratedDeriv k (deriv f) := by
