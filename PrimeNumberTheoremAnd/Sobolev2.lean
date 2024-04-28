@@ -352,15 +352,12 @@ def of_Schwartz (f : 𝓢(ℝ, ℂ)) : W1 n ℂ := by
 instance : Coe (CS n E) (W1 n E) where
   coe f := ⟨f, CS.integrable_iteratedDeriv_of_le f⟩
 
-#exit
-
 def smul (g : CS n ℝ) (f : W1 n E) : W1 n E := by
-  refine ⟨g.toCD • f.toCD, ?_⟩
+  refine ⟨CD.smul g f, ?_⟩
   intro k hk
   obtain ⟨l, rfl⟩ : ∃ l, l + k = n := by simpa [add_comm k] using Nat.le.dest hk
-  apply Continuous.integrable_of_hasCompactSupport
-  · exact (g.toCD • f.toCD).iteratedDeriv k |>.continuous
-  · exact g.compact.smul_right.iteratedDeriv
+  apply (CD.continuous _).integrable_of_hasCompactSupport
+  exact g.2.smul_right.iteratedDeriv
 
 instance : SMul (CS n ℝ) (W1 n E) where smul := smul
 
@@ -376,13 +373,15 @@ lemma L1_norm_sub {f g : ℝ → E} (hf : Integrable f) (hg : Integrable g) :
   rw [L1_norm, L1_norm, L1_norm, ← integral_add' hf.norm hg.norm]
   apply integral_mono (by fun_prop) (by fun_prop) ; intro t ; simp ; apply norm_sub_le
 
-noncomputable def norm1 (f : W1 n E) : ℝ := L1_norm ⇑f
+noncomputable def norm1 (f : W1 n E) : ℝ := L1_norm f
 
 lemma norm1_nonneg (f : W1 n E) : 0 ≤ norm1 f := by
   rw [norm1, L1_norm] ; positivity
 
 noncomputable def norm (n : ℕ) (f : ℝ → E) : ℝ :=
   ∑ k in Finset.range (n + 1), L1_norm (iteratedDeriv k f)
+
+#exit
 
 noncomputable instance : Norm (W1 n E) where norm f := norm n f
 
