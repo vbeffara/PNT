@@ -436,21 +436,22 @@ lemma norm_add_le {f g : W1 n E} : ‖f + g‖ ≤ ‖f‖ + ‖g‖ := by
   change L1_norm (iteratedDeriv k (⇑f + ⇑g)) ≤ _
   rw [iteratedDeriv_add l1 l2] ; apply L1_norm_add l3 l4
 
-#exit
-
 lemma norm_sub_le {f g : W1 n E} : ‖f - g‖ ≤ ‖f‖ + ‖g‖ := by
   simp [Norm.norm, norm, ← Finset.sum_add_distrib] ; apply Finset.sum_le_sum ; intro k hk
   have lk : k ≤ n := by simp at hk ; omega
-  have l1 : ContDiff ℝ k f := by apply f.smooth.of_le ; simp [lk]
-  have l2 : ContDiff ℝ k g := by apply g.smooth.of_le ; simp [lk]
-  have l3 : Integrable (iteratedDeriv k f) := by apply f.integrable lk
-  have l4 : Integrable (iteratedDeriv k g) := by apply g.integrable lk
+  have l1 : ContDiff ℝ k f := by apply f.1.2.of_le ; simp [lk]
+  have l2 : ContDiff ℝ k g := by apply g.1.2.of_le ; simp [lk]
+  have l3 : Integrable (iteratedDeriv k f) := by apply f.2 lk
+  have l4 : Integrable (iteratedDeriv k g) := by apply g.2 lk
   change L1_norm (iteratedDeriv k (⇑f - ⇑g)) ≤ _
   rw [iteratedDeriv_sub l1 l2] ; apply L1_norm_sub l3 l4
 
 theorem norm_mul (g : CS n ℝ) (f : W1 n E) : ‖g • f‖ ≤ (2 ^ (n + 1) - 1) * (‖g‖ * ‖f‖) := by
   induction n with
-  | zero => norm_num ; simpa [Norm.norm, norm] using norm_mul0 g f
+  | zero =>
+    conv => enter [2, 1] ; norm_num
+    simp only [Norm.norm, norm, Nat.add_one, Finset.range_one, Finset.sum_singleton, iteratedDeriv_zero, one_mul]
+    exact norm_mul0 g f
   | succ n ih =>
     have l1 : (0 : ℝ) ≤ 2 ^ (n + 1) - 1 := by simp ; norm_cast ; apply Nat.one_le_pow'
     have key1 : norm1 (g • f) ≤ ‖g‖ * ‖f‖ := by
@@ -458,19 +459,21 @@ theorem norm_mul (g : CS n ℝ) (f : W1 n E) : ‖g • f‖ ≤ (2 ^ (n + 1) - 
       have := integral_norm_le_norm f
       gcongr ; apply CS.norm_nonneg
     have key2 : ‖CS.of_succ g • deriv f‖ ≤ (2 ^ (n + 1) - 1) * (‖g‖ * ‖f‖) := by
-      apply ih g.of_succ f.deriv |>.trans
-      have := f.norm_deriv
-      have := g.norm_of_succ
+      apply ih (CS.of_succ g) (deriv f) |>.trans
+      have := norm_deriv f
+      have := CS.norm_of_succ g
       gcongr ; apply norm_nonneg ; apply CS.norm_nonneg
-    have key3 : ‖CS.deriv g • f.of_succ‖ ≤ (2 ^ (n + 1) - 1) * (‖g‖ * ‖f‖) := by
-      apply ih g.deriv f.of_succ |>.trans
-      have := f.norm_of_succ
-      have := g.norm_deriv
+    have key3 : ‖CS.deriv g • of_succ f‖ ≤ (2 ^ (n + 1) - 1) * (‖g‖ * ‖f‖) := by
+      apply ih (CS.deriv g) (of_succ f) |>.trans
+      have := norm_of_succ f
+      have := CS.norm_deriv g
       gcongr ; apply norm_nonneg ; apply CS.norm_nonneg
-    have key4 : ‖(g • f).deriv‖ ≤ (2 ^ (n + 2) - 2) * (‖g‖ * ‖f‖) := by
+    have key4 : ‖deriv (g • f)‖ ≤ (2 ^ (n + 2) - 2) * (‖g‖ * ‖f‖) := by
       rw [deriv_smul] ; apply norm_add_le.trans
       convert add_le_add key2 key3 using 1 ; simp [pow_succ] ; ring
     rw [norm_succ] ; convert add_le_add key1 key4 using 1 ; simp [pow_succ] ; ring
+
+#exit
 
 lemma approx0 (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
     Tendsto (fun R ↦ norm1 (f - CS.scale g R • f)) atTop (𝓝 0) := by
