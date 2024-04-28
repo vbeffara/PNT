@@ -381,8 +381,6 @@ lemma norm1_nonneg (f : W1 n E) : 0 ≤ norm1 f := by
 noncomputable def norm (n : ℕ) (f : ℝ → E) : ℝ :=
   ∑ k in Finset.range (n + 1), L1_norm (iteratedDeriv k f)
 
-#exit
-
 noncomputable instance : Norm (W1 n E) where norm f := norm n f
 
 @[simp] lemma norm_of_zero (f : W1 0 E) : ‖f‖ = L1_norm f := by simp [Norm.norm, norm]
@@ -390,21 +388,26 @@ noncomputable instance : Norm (W1 n E) where norm f := norm n f
 @[simp] lemma norm_nonneg {f : W1 n E} : 0 ≤ ‖f‖ := by
   simp [Norm.norm, norm, L1_norm] ; positivity
 
-lemma norm_succ (f : W1 (n + 1) E) : ‖f‖ = norm1 f + ‖f.deriv‖ := by
+lemma norm_succ (f : W1 (n + 1) E) : ‖f‖ = norm1 f + ‖deriv f‖ := by
   simp [Norm.norm, norm, norm1, deriv, CD.deriv, ← iteratedDeriv_succ', Finset.sum_range_succ' _ (n + 1)] ; ring
 
 lemma integral_norm_le_norm (f : W1 n E) : norm1 f ≤ ‖f‖ := by
-  have l1 i (_ : i ∈ Finset.range (n + 1)) : 0 ≤ ∫ (v : ℝ), ‖iteratedDeriv i f.toFun v‖ := by positivity
+  have l1 i (_ : i ∈ Finset.range (n + 1)) : 0 ≤ ∫ (v : ℝ), ‖iteratedDeriv i f v‖ := by positivity
   have l2 : 0 ∈ Finset.range (n + 1) := by simp
   exact Finset.single_le_sum l1 l2
 
-lemma norm_deriv (f : W1 (n + 1) E) : ‖f.deriv‖ ≤ ‖f‖ := by
+lemma norm_deriv (f : W1 (n + 1) E) : ‖deriv f‖ ≤ ‖f‖ := by
   rw [norm_succ] ; linarith [norm1_nonneg f]
 
 lemma norm_mul0 (g : CS n ℝ) (f : W1 n E) : norm1 (g • f) ≤ ‖g‖ * norm1 f := by
   convert_to ∫ v, ‖g v • f v‖ ≤ ‖g‖ * (∫ v, ‖f v‖) using 0
-  rw [← integral_mul_left] ; refine integral_mono (g • f).integrable'.norm (by fun_prop) ?_
-  intro v ; simp [norm_smul] ; gcongr ; exact g.le_norm v
+  rw [← integral_mul_left]
+  apply integral_mono
+  · exact W1.integrable' (g • f) |>.norm
+  · fun_prop
+  · intro v ; simp [norm_smul] ; gcongr ; exact CS.le_norm g v
+
+#exit
 
 def of_succ (f : W1 (n + 1) E) : W1 n E := ⟨f.toCD, fun k hk => f.integrable (by omega)⟩
 
