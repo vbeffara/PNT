@@ -407,47 +407,36 @@ lemma norm_mul0 (g : CS n ℝ) (f : W1 n E) : norm1 (g • f) ≤ ‖g‖ * norm
   · fun_prop
   · intro v ; simp [norm_smul] ; gcongr ; exact CS.le_norm g v
 
-#exit
-
-def of_succ (f : W1 (n + 1) E) : W1 n E := ⟨f.toCD, fun k hk => f.integrable (by omega)⟩
+def of_succ (f : W1 (n + 1) E) : W1 n E := ⟨f, fun k hk => f.2 (by omega)⟩
 
 instance : Coe (W1 (n + 1) E) (W1 n E) where coe := of_succ
 
-lemma norm_of_succ (f : W1 (n + 1) E) : ‖f.of_succ‖ ≤ ‖f‖ := by
+lemma norm_of_succ (f : W1 (n + 1) E) : ‖of_succ f‖ ≤ ‖f‖ := by
   simp_rw [Norm.norm, norm, L1_norm] ; apply Finset.sum_le_sum_of_subset_of_nonneg (by simp)
   rintro i - - ; positivity
 
-def add (f g : W1 n E) : W1 n E := by
-  refine ⟨f.toCD + g.toCD, fun k hk => ?_⟩
-  have l1 := f.integrable hk
-  have l2 := g.integrable hk
-  have l3 := l1.add l2
-  convert l3 ; ext x ; simp [CD.iteratedDeriv_of_le]
-  have := Nat.le.dest hk ; simp_rw [add_comm k] at this ; obtain ⟨l, rfl⟩ := this
-  exact @CD.iteratedDeriv_add' E _ _ l k f g x
-
-instance : Add (W1 n E) where add := add
-
-@[simp] lemma add_apply (f g : W1 n E) (x : ℝ) : (f + g) x = f x + g x := rfl
-
-nonrec lemma deriv_sub (f g : W1 (n + 1) E) : (f - g).deriv = f.deriv - g.deriv := by
-  ext x ; exact deriv_sub f.differentiable.differentiableAt g.differentiable.differentiableAt
+nonrec lemma deriv_sub (f g : W1 (n + 1) E) : deriv (f - g) = deriv f - deriv g := by
+  ext x ; apply deriv_sub
+  · exact f.1.2.differentiable (by simp) |>.differentiableAt
+  · exact g.1.2.differentiable (by simp) |>.differentiableAt
 
 lemma deriv_smul {g : CS (n + 1) ℝ} {f : W1 (n + 1) E} :
-    (g • f).deriv = g.of_succ • f.deriv + g.deriv • f.of_succ := by
+    deriv (g • f) = CS.of_succ g • deriv f + CS.deriv g • of_succ f := by
   ext x ; apply _root_.deriv_smul
-  · exact g.smooth.differentiable (by simp) |>.differentiableAt
-  · exact f.smooth.differentiable (by simp) |>.differentiableAt
+  · exact g.1.2.differentiable (by simp) |>.differentiableAt
+  · exact f.1.2.differentiable (by simp) |>.differentiableAt
 
 lemma norm_add_le {f g : W1 n E} : ‖f + g‖ ≤ ‖f‖ + ‖g‖ := by
   simp [Norm.norm, norm, ← Finset.sum_add_distrib] ; apply Finset.sum_le_sum ; intro k hk
   have lk : k ≤ n := by simp at hk ; omega
-  have l1 : ContDiff ℝ k f := by apply f.smooth.of_le ; simp [lk]
-  have l2 : ContDiff ℝ k g := by apply g.smooth.of_le ; simp [lk]
-  have l3 : Integrable (iteratedDeriv k f) := by apply f.integrable lk
-  have l4 : Integrable (iteratedDeriv k g) := by apply g.integrable lk
+  have l1 : ContDiff ℝ k f := by apply f.1.2.of_le ; simp [lk]
+  have l2 : ContDiff ℝ k g := by apply g.1.2.of_le ; simp [lk]
+  have l3 : Integrable (iteratedDeriv k f) := by apply f.2 lk
+  have l4 : Integrable (iteratedDeriv k g) := by apply g.2 lk
   change L1_norm (iteratedDeriv k (⇑f + ⇑g)) ≤ _
   rw [iteratedDeriv_add l1 l2] ; apply L1_norm_add l3 l4
+
+#exit
 
 lemma norm_sub_le {f g : W1 n E} : ‖f - g‖ ≤ ‖f‖ + ‖g‖ := by
   simp [Norm.norm, norm, ← Finset.sum_add_distrib] ; apply Finset.sum_le_sum ; intro k hk
