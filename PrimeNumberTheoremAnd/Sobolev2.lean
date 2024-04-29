@@ -12,11 +12,13 @@ attribute [fun_prop] HasCompactSupport HasCompactSupport.smul_right HasCompactSu
 
 variable {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E] {k n : ℕ} {𝕜 : Type*} [RCLike 𝕜]
 
-def CD (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : Subspace ℝ (ℝ → E) where
+def CD_ (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : Subspace ℝ (ℝ → E) where
   carrier := {f | ContDiff ℝ n f}
   zero_mem' := by change ContDiff ℝ (↑n) (fun _ => 0) ; apply contDiff_const
   add_mem' hf hg := hf.add hg
   smul_mem' c f hf := hf.const_smul c
+
+abbrev CD (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : Type _ := CD_ n E
 
 section lemmas
 
@@ -63,33 +65,33 @@ instance : Coe (CD (n + 1) E) (CD n E) where coe f := of_succ f
 
 noncomputable nonrec def deriv (f : CD (n + 1) E) : CD n E := ⟨deriv f, (contDiff_succ_iff_deriv.mp f.2).2⟩
 
-lemma hasDerivAt (f : CD (n + 1) E) (x : ℝ) : HasDerivAt f (deriv f x) x :=
-  (f.2.differentiable (by simp)).differentiableAt.hasDerivAt
+lemma differentiable (f : CD (n + 1) E) : Differentiable ℝ f := f.2.differentiable (by simp)
 
-lemma deriv_apply {f : CD (n + 1) E} {x : ℝ} : deriv f x = _root_.deriv f x := rfl
+lemma hasDerivAt (f : CD (n + 1) E) (x : ℝ) : HasDerivAt f (f.deriv x) x :=
+  f.differentiable.differentiableAt.hasDerivAt
 
-lemma deriv_const_smul {f : CD (n + 1) E} : deriv (R • f) = R • deriv f := by
-  ext x ; exact (hasDerivAt f x |>.const_smul R).deriv
+lemma deriv_const_smul {f : CD (n + 1) E} : (R • f).deriv = R • f.deriv := by
+  ext x ; exact (f.hasDerivAt x |>.const_smul R).deriv
 
 noncomputable def scale (g : CD n E) (R : ℝ) : CD n E := by
   by_cases R = 0
   · exact ⟨0, contDiff_const⟩
   · exact ⟨funscale g R, g.2.comp (contDiff_const.smul contDiff_id)⟩
 
-lemma deriv_scale {f : CD (n + 1) E} : deriv (scale f R) = R⁻¹ • scale (deriv f) R := by
+lemma deriv_scale {f : CD (n + 1) E} : (f.scale R).deriv = R⁻¹ • f.deriv.scale R := by
   ext v ; by_cases hR : R = 0 <;> simp [hR, scale]
   · simp [deriv] ; exact deriv_const _ _
   · exact ((hasDerivAt f (R⁻¹ • v)).scomp v (by simpa using (hasDerivAt_id v).const_smul R⁻¹)).deriv
 
-@[simp] lemma deriv_scale' {f : CD (n + 1) E} : deriv (scale f R) v = R⁻¹ • deriv f (R⁻¹ • v) := by
+@[simp] lemma deriv_scale' {f : CD (n + 1) E} : (f.scale R).deriv v = R⁻¹ • f.deriv (R⁻¹ • v) := by
   rw [deriv_scale] ; by_cases hR : R = 0 <;> simp [hR, scale, funscale]
 
 lemma hasDerivAt_scale (f : CD (n + 1) E) (R x : ℝ) :
-    HasDerivAt (scale f R) (R⁻¹ • deriv f (R⁻¹ • x)) x := by
+    HasDerivAt (f.scale R) (R⁻¹ • f.deriv (R⁻¹ • x)) x := by
   simpa using hasDerivAt (scale f R) x
 
 lemma tendsto_scale (f : CD n E) (x : ℝ) : Tendsto (fun R => scale f R x) atTop (𝓝 (f 0)) := by
-  apply (tendsto_funscale f.2.continuous.continuousAt x).congr'
+  apply (tendsto_funscale f.continuous.continuousAt x).congr'
   filter_upwards [eventually_ne_atTop 0] with R hR ; simp [scale, hR]
 
 def mul (f g : CD n 𝕜) : CD n 𝕜 := ⟨f * g, f.2.mul g.2⟩
@@ -97,10 +99,7 @@ def mul (f g : CD n 𝕜) : CD n 𝕜 := ⟨f * g, f.2.mul g.2⟩
 instance : Mul (CD n 𝕜) where mul := mul
 
 nonrec lemma deriv_mul (f g : CD (n + 1) 𝕜) : deriv (f * g) = deriv f * of_succ g + of_succ f * deriv g := by
-  ext t
-  have l1 : DifferentiableAt ℝ f t := (f.2.differentiable (by simp)).differentiableAt
-  have l2 : DifferentiableAt ℝ g t := (g.2.differentiable (by simp)).differentiableAt
-  exact deriv_mul l1 l2
+  ext t ; exact deriv_mul f.differentiable.differentiableAt g.differentiable.differentiableAt
 
 def smul (f : CD n ℝ) (g : CD n E) : CD n E := ⟨fun t => f t • g t, f.2.smul g.2⟩
 
@@ -108,10 +107,7 @@ instance : SMul (CD n ℝ) (CD n E) where smul := smul
 
 nonrec lemma deriv_smul (f : CD (n + 1) ℝ) (g : CD (n + 1) E) :
     deriv (f • g) = of_succ f • deriv g + deriv f • of_succ g := by
-  ext t
-  have l1 : DifferentiableAt ℝ f t := (f.2.differentiable (by simp)).differentiableAt
-  have l2 : DifferentiableAt ℝ g t := (g.2.differentiable (by simp)).differentiableAt
-  exact deriv_smul l1 l2
+  ext t ; exact deriv_smul f.differentiable.differentiableAt g.differentiable.differentiableAt
 
 noncomputable nonrec def iteratedDeriv (k : ℕ) (f : CD (n + k) E) : CD n E := by
   refine ⟨iteratedDeriv k f, ?_⟩
@@ -147,10 +143,7 @@ nonrec lemma iteratedDeriv_succ {k : ℕ} {f : CD (n + (k + 1)) E} :
   simp [iteratedDeriv, iteratedDeriv_succ'] ; rfl
 
 nonrec lemma deriv_add (f g : CD (n + 1) E) : deriv (f + g) = deriv f + deriv g := by
-  ext x
-  apply deriv_add
-  · exact (f.2.differentiable (by simp)).differentiableAt
-  · exact (g.2.differentiable (by simp)).differentiableAt
+  ext x ; exact deriv_add f.differentiable.differentiableAt g.differentiable.differentiableAt
 
 lemma iteratedDeriv_add {k : ℕ} {f g : CD (n + k) E} :
     iteratedDeriv k (f + g) = iteratedDeriv k f + iteratedDeriv k g := by
@@ -164,11 +157,13 @@ lemma iteratedDeriv_add' {k : ℕ} {f g : CD (n + k) E} {x : ℝ} :
 
 end CD
 
-def CS (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : Subspace ℝ (CD n E) where
+def CS_ (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : Subspace ℝ (CD n E) where
   carrier := {f | HasCompactSupport f}
   zero_mem' := by change HasCompactSupport (fun _ => 0) ; simp [HasCompactSupport, tsupport]
   add_mem' hf hg := hf.add hg
   smul_mem' c f hf := hf.smul_left
+
+abbrev CS (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : Type _ := CS_ n E
 
 namespace CS
 
@@ -201,7 +196,7 @@ lemma deriv_smul {f : CS (n + 1) E} : deriv (R • f) = R • deriv f := by
 noncomputable nonrec def scale (g : CS n E) (R : ℝ) : CS n E := by
   refine ⟨CD.scale g R, ?_⟩
   by_cases h : R = 0 <;> simp [CD.scale, h]
-  · simp [CS, HasCompactSupport, tsupport]
+  · simp [CS_, HasCompactSupport, tsupport]
   · exact g.2.comp_smul (inv_ne_zero h)
 
 nonrec lemma deriv_scale {f : CS (n + 1) E} : deriv (scale f R) = R⁻¹ • scale (deriv f) R := by
@@ -236,7 +231,8 @@ lemma integrable_iteratedDeriv {n : ℕ} (f : CS n E) : Integrable (iteratedDeri
   | zero => exact integrable f
   | succ n ih => simpa [iteratedDeriv_succ'] using ih (deriv f)
 
-lemma integrable_iteratedDeriv_of_le {n : ℕ} (f : CS n E) ⦃k : ℕ⦄ (hk : k ≤ n) : Integrable (iteratedDeriv k f) := by
+lemma integrable_iteratedDeriv_of_le {n : ℕ} (f : CS n E) ⦃k : ℕ⦄ (hk : k ≤ n) :
+    Integrable (iteratedDeriv k f) := by
   obtain ⟨m, rfl⟩ := Nat.le.dest hk ; exact integrable_iteratedDeriv (of_le f hk)
 
 noncomputable def norm (f : CS n E) : ℝ :=
@@ -325,11 +321,13 @@ lemma zero (g : trunc) : g =ᶠ[𝓝 0] 1 := by
 
 end trunc
 
-def W1 (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : Subspace ℝ (CD n E) where
+def W1_ (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : Subspace ℝ (CD n E) where
   carrier := {f | ∀ ⦃k : ℕ⦄ (hk : k ≤ n), Integrable (CD.iteratedDeriv_of_le hk f)}
   zero_mem' k hk := by simp ; exact integrable_zero ℝ E _
   add_mem' {f g} hf hg k hk := by simpa using (hf hk).add (hg hk)
   smul_mem' c f hf k hk := by simpa using hf hk |>.smul c
+
+abbrev W1 (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : Type _ := W1_ n E
 
 namespace W1
 
@@ -342,8 +340,7 @@ instance : Coe (W1 n E) (CD n E) where coe f := f
 
 @[fun_prop, continuity] lemma continuous (f : W1 n E) : Continuous f := f.1.2.continuous
 
-lemma differentiable (f : W1 (n + 1) E) : Differentiable ℝ f :=
-  f.1.2.differentiable (by simp)
+lemma differentiable (f : W1 (n + 1) E) : Differentiable ℝ f := f.1.2.differentiable (by simp)
 
 lemma iteratedDeriv_sub {f g : ℝ → E} (hf : ContDiff ℝ n f) (hg : ContDiff ℝ n g) :
     iteratedDeriv n (f - g) = iteratedDeriv n f - iteratedDeriv n g := by
@@ -374,8 +371,7 @@ lemma iteratedDeriv_add {f g : ℝ → E} (hf : ContDiff ℝ n f) (hg : ContDiff
 noncomputable def deriv (f : W1 (n + 1) E) : W1 n E where
   val := CD.deriv f
   property k hk := by
-    simpa [CD.iteratedDeriv_of_le, CD.deriv, ← iteratedDeriv_succ'] using
-      f.2 (Nat.succ_le_succ hk)
+    simpa [CD.iteratedDeriv_of_le, CD.deriv, ← iteratedDeriv_succ'] using f.2 (Nat.succ_le_succ hk)
 
 lemma hasDerivAt (f : W1 (n + 1) E) (x : ℝ) : HasDerivAt f (deriv f x) x := CD.hasDerivAt _ _
 
@@ -387,8 +383,7 @@ lemma integrable_iteratedDeriv_Schwarz {f : 𝓢(ℝ, ℂ)} : Integrable (iterat
 def of_Schwartz (f : 𝓢(ℝ, ℂ)) : W1 n ℂ := by
   refine ⟨⟨f, f.smooth n⟩, fun _ _ => integrable_iteratedDeriv_Schwarz⟩
 
-instance : Coe (CS n E) (W1 n E) where
-  coe f := ⟨f, CS.integrable_iteratedDeriv_of_le f⟩
+instance : Coe (CS n E) (W1 n E) where coe f := ⟨f, f.integrable_iteratedDeriv_of_le⟩
 
 def smul (g : CS n ℝ) (f : W1 n E) : W1 n E := by
   refine ⟨CD.smul g f, ?_⟩
@@ -454,15 +449,11 @@ lemma norm_of_succ (f : W1 (n + 1) E) : ‖of_succ f‖ ≤ ‖f‖ := by
   rintro i - - ; positivity
 
 nonrec lemma deriv_sub (f g : W1 (n + 1) E) : deriv (f - g) = deriv f - deriv g := by
-  ext x ; apply deriv_sub
-  · exact f.1.2.differentiable (by simp) |>.differentiableAt
-  · exact g.1.2.differentiable (by simp) |>.differentiableAt
+  ext x ; exact deriv_sub f.differentiable.differentiableAt g.differentiable.differentiableAt
 
 lemma deriv_smul {g : CS (n + 1) ℝ} {f : W1 (n + 1) E} :
     deriv (g • f) = CS.of_succ g • deriv f + CS.deriv g • of_succ f := by
-  ext x ; apply _root_.deriv_smul
-  · exact g.1.2.differentiable (by simp) |>.differentiableAt
-  · exact f.1.2.differentiable (by simp) |>.differentiableAt
+  ext1 ; apply CD.deriv_smul
 
 lemma norm_add_le {f g : W1 n E} : ‖f + g‖ ≤ ‖f‖ + ‖g‖ := by
   simp [Norm.norm, norm, ← Finset.sum_add_distrib] ; apply Finset.sum_le_sum ; intro k hk
@@ -491,30 +482,33 @@ theorem norm_mul (g : CS n ℝ) (f : W1 n E) : ‖g • f‖ ≤ (2 ^ (n + 1) - 
     simp only [Norm.norm, norm, Nat.add_one, Finset.range_one, Finset.sum_singleton, iteratedDeriv_zero, one_mul]
     exact norm_mul0 g f
   | succ n ih =>
-    have l1 : (0 : ℝ) ≤ 2 ^ (n + 1) - 1 := by simp ; norm_cast ; apply Nat.one_le_pow'
+    have l1 : (0 : ℝ) ≤ 2 ^ (n + 1) - 1 := by
+      simp only [sub_nonneg] ; norm_cast ; apply Nat.one_le_pow'
     have key1 : norm1 (g • f) ≤ ‖g‖ * ‖f‖ := by
       apply norm_mul0 g f |>.trans
       have := integral_norm_le_norm f
       gcongr ; apply CS.norm_nonneg
     have key2 : ‖CS.of_succ g • deriv f‖ ≤ (2 ^ (n + 1) - 1) * (‖g‖ * ‖f‖) := by
-      apply ih (CS.of_succ g) (deriv f) |>.trans
+      apply ih g.of_succ f.deriv |>.trans
       have := norm_deriv f
-      have := CS.norm_of_succ g
+      have := g.norm_of_succ
       gcongr ; apply norm_nonneg ; apply CS.norm_nonneg
-    have key3 : ‖CS.deriv g • of_succ f‖ ≤ (2 ^ (n + 1) - 1) * (‖g‖ * ‖f‖) := by
-      apply ih (CS.deriv g) (of_succ f) |>.trans
+    have key3 : ‖g.deriv • f.of_succ‖ ≤ (2 ^ (n + 1) - 1) * (‖g‖ * ‖f‖) := by
+      apply ih g.deriv f.of_succ |>.trans
       have := norm_of_succ f
       have := CS.norm_deriv g
       gcongr ; apply norm_nonneg ; apply CS.norm_nonneg
     have key4 : ‖deriv (g • f)‖ ≤ (2 ^ (n + 2) - 2) * (‖g‖ * ‖f‖) := by
       rw [deriv_smul] ; apply norm_add_le.trans
-      convert add_le_add key2 key3 using 1 ; simp [pow_succ] ; ring
-    rw [norm_succ] ; convert add_le_add key1 key4 using 1 ; simp [pow_succ] ; ring
+      convert add_le_add key2 key3 using 1
+      simp only [pow_succ] ; ring
+    rw [norm_succ] ; convert add_le_add key1 key4 using 1
+    simp only [pow_succ] ; ring
 
 lemma approx0 (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
-    Tendsto (fun R ↦ norm1 (f - CS.scale g R • f)) atTop (𝓝 0) := by
+    Tendsto (fun R ↦ norm1 (f - g.scale R • f)) atTop (𝓝 0) := by
 
-  let F R x := ‖(f - CS.scale g R • f) x‖
+  let F R x := ‖(f - g.scale R • f) x‖
   let bound x := (1 + ‖g‖) * ‖f x‖
   have l1 : ∀ᶠ (R : ℝ) in atTop, AEStronglyMeasurable (F R) volume := by
     apply eventually_of_forall ; intro R
@@ -523,21 +517,24 @@ lemma approx0 (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
   have l2 : ∀ᶠ R in atTop, ∀ᵐ x, ‖F R x‖ ≤ bound x := by
     filter_upwards [eventually_ne_atTop 0] with R hR
     apply eventually_of_forall ; intro x
-    convert_to ‖f x - (CS.scale g R • f) x‖ ≤ ‖f x‖ + ‖g‖ * ‖f x‖
+    convert_to ‖f x - (g.scale R • f) x‖ ≤ ‖f x‖ + ‖g‖ * ‖f x‖
     · simp only [F, norm_norm] ; congr
-    · simp [bound] ; ring
+    · simp only [bound] ; ring
     apply (_root_.norm_sub_le _ _).trans ; gcongr
-    change ‖CS.scale g R x • f x‖ ≤ ‖g‖ * ‖f x‖ ; simp [norm_smul] ; gcongr
-    simpa [CS.scale, CD.scale, hR, funscale] using CS.le_norm g (R⁻¹ * x)
+    change ‖CS.scale g R x • f x‖ ≤ ‖g‖ * ‖f x‖
+    simp only [norm_smul, Real.norm_eq_abs] ; gcongr
+    simpa only [CS.scale, CD.scale, hR, ↓reduceDite, funscale, smul_eq_mul, Real.norm_eq_abs] using
+      g.le_norm (R⁻¹ * x)
   have l3 : Integrable bound volume := (W1.integrable' f).norm.const_mul _
   have l4 : ∀ᵐ (a : ℝ), Tendsto (fun n ↦ F n a) atTop (𝓝 0) := by
     apply eventually_of_forall ; intro x
-    simpa [hg] using (((CS.tendsto_scale g x).smul_const (f x)).const_sub (f x)).norm
-  haveI : AddGroup (W1 n E) := AddCommGroup.toAddGroup
-  simpa using tendsto_integral_filter_of_dominated_convergence bound l1 l2 l3 l4
+    simpa only [hg, one_smul, sub_self, norm_zero] using
+      (((g.tendsto_scale x).smul_const (f x)).const_sub (f x)).norm
+  simpa only [integral_zero] using
+    tendsto_integral_filter_of_dominated_convergence bound l1 l2 l3 l4
 
 theorem W1_approximation (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
-    Tendsto (fun R => ‖f - CS.scale g R • f‖) atTop (𝓝 0) := by
+    Tendsto (fun R => ‖f - g.scale R • f‖) atTop (𝓝 0) := by
 
   induction n with
   | zero =>
@@ -548,20 +545,20 @@ theorem W1_approximation (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
     simp_rw [norm_succ] ; apply ZeroAtFilter.add (approx0 f g hg)
     simp_rw [deriv_sub, deriv_smul]
     convert_to ZeroAtFilter atTop fun R ↦
-        ‖(deriv f - CS.of_succ (CS.scale g R) • deriv f) - CS.deriv (CS.scale g R) • of_succ f‖
+        ‖(f.deriv - (g.scale R).of_succ • f.deriv) - (g.scale R).deriv • f.of_succ‖
         using 1
     · ext R ; congr 1 ; ext x
       simp only [AddSubgroupClass.coe_sub, AddSubmonoid.coe_add,
         Submodule.coe_toAddSubmonoid, Pi.sub_apply, Pi.add_apply, sub_sub]
     simp_rw [← CS.of_succ_scale, CS.deriv_scale, ZeroAtFilter]
-    have key1 := ih (deriv f) (CS.of_succ g) hg
+    have key1 := ih f.deriv g.of_succ hg
     rw [Metric.tendsto_nhds] at key1 ⊢ ; intro ε hε
     specialize key1 (ε / 2) (by positivity)
     have key2 : ∀ᶠ R in atTop, (2 ^ (n + 1) - 1) * R⁻¹ * ‖g‖ * ‖f‖ < ε / 2 := by
       have := tendsto_inv_atTop_zero (𝕜 := ℝ) |>.const_mul (2 ^ (n + 1) - 1) |>.mul_const ‖g‖ |>.mul_const ‖f‖
-      simp at this ; apply eventually_lt_of_tendsto_lt _ this ; positivity
+      simp only [mul_zero, zero_mul] at this
+      apply eventually_lt_of_tendsto_lt _ this ; positivity
     filter_upwards [key1, key2, eventually_ge_atTop 1] with R key1 key2 hR
-    haveI : AddGroup (W1 n E) := AddCommGroup.toAddGroup
     simp only [dist_zero_right, Real.norm_eq_abs] at key1 ⊢
     rw [abs_eq_self.mpr (W1.norm_nonneg)] at key1 ⊢
     apply norm_sub_le.trans_lt
@@ -569,12 +566,13 @@ theorem W1_approximation (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
     gcongr
     apply norm_mul _ _ |>.trans_lt
     refine LE.le.trans_lt ?_ key2
-    have : (0 : ℝ) ≤ 2 ^ (n + 1) - 1 := by simp ; norm_cast ; apply Nat.one_le_pow'
-    convert_to (2 ^ (n + 1) - 1) * ‖R⁻¹ • CS.scale (CS.deriv g) R‖ * ‖of_succ f‖ ≤
+    have : (0 : ℝ) ≤ 2 ^ (n + 1) - 1 := by
+      simp only [sub_nonneg] ; norm_cast ; apply Nat.one_le_pow'
+    convert_to (2 ^ (n + 1) - 1) * ‖R⁻¹ • g.deriv.scale R‖ * ‖f.of_succ‖ ≤
       (2 ^ (n + 1) - 1) * (R⁻¹ * ‖g‖) * ‖f‖ ; ring ; ring
-    gcongr ; simp ; apply mul_nonneg ; linarith ; apply mul_nonneg ; positivity ; simp
-    · simp [CS.norm_smul] ; gcongr ; simp ; rw [abs_eq_self.mpr] ; positivity
-      apply CS.norm_scale R hR (CS.deriv g) |>.trans
+    gcongr ; apply norm_nonneg ; apply mul_nonneg ; linarith ; apply mul_nonneg ; positivity ; apply CS.norm_nonneg
+    · simp only [CS.norm_smul] ; gcongr ; simp only [CS.norm_nonneg] ; rw [abs_eq_self.mpr] ; positivity
+      apply CS.norm_scale R hR g.deriv |>.trans
       apply CS.norm_deriv
     · apply norm_of_succ
 
