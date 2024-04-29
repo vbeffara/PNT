@@ -2,8 +2,6 @@ import Mathlib.Analysis.Calculus.Deriv.Support
 import Mathlib.Analysis.Distribution.SchwartzSpace
 import Mathlib.Order.Filter.ZeroAndBoundedAtFilter
 
-set_option maxHeartbeats 20000000
-
 open Real Complex MeasureTheory Filter Topology BoundedContinuousFunction SchwartzMap  BigOperators Set
 
 attribute [fun_prop] Integrable Integrable.norm Integrable.const_mul Integrable.add Integrable.sub
@@ -44,6 +42,10 @@ lemma tendsto_funscale {f : ℝ → E} (hf : ContinuousAt f 0) (x : ℝ) :
   induction n with
   | zero => rfl
   | succ n ih => simp [iteratedDeriv_succ, ih] ; apply deriv_const'
+
+lemma iteratedDeriv_const_smul_apply (c : ℝ) (f : ℝ → E) (hf : ContDiff ℝ k f) :
+    iteratedDeriv k (c • f) = c • iteratedDeriv k f := by
+  ext x ; simp [iteratedDeriv_eq_iteratedFDeriv, iteratedFDeriv_const_smul_apply hf]
 
 end lemmas
 
@@ -455,7 +457,7 @@ lemma deriv_smul {g : CS (n + 1) ℝ} {f : W1 (n + 1) E} :
     deriv (g • f) = CS.of_succ g • deriv f + CS.deriv g • of_succ f := by
   ext1 ; apply CD.deriv_smul
 
-lemma norm_add_le {f g : W1 n E} : ‖f + g‖ ≤ ‖f‖ + ‖g‖ := by
+lemma norm_add_le (f g : W1 n E) : ‖f + g‖ ≤ ‖f‖ + ‖g‖ := by
   simp [Norm.norm, norm, ← Finset.sum_add_distrib] ; apply Finset.sum_le_sum ; intro k hk
   have lk : k ≤ n := by simp at hk ; omega
   have l1 : ContDiff ℝ k f := by apply f.1.2.of_le ; simp [lk]
@@ -499,11 +501,41 @@ theorem norm_mul (g : CS n ℝ) (f : W1 n E) : ‖g • f‖ ≤ (2 ^ (n + 1) - 
       have := CS.norm_deriv g
       gcongr ; apply norm_nonneg ; apply CS.norm_nonneg
     have key4 : ‖deriv (g • f)‖ ≤ (2 ^ (n + 2) - 2) * (‖g‖ * ‖f‖) := by
-      rw [deriv_smul] ; apply norm_add_le.trans
+      rw [deriv_smul] ; apply (norm_add_le _ _).trans
       convert add_le_add key2 key3 using 1
       simp only [pow_succ] ; ring
     rw [norm_succ] ; convert add_le_add key1 key4 using 1
     simp only [pow_succ] ; ring
+
+@[simp] lemma norm_zero : ‖(0 : W1 n E)‖ = 0 := by
+  simp [Norm.norm, norm, L1_norm]
+
+@[simp] lemma norm_neg (f : W1 n E) : ‖-f‖ = ‖f‖ := by
+  simp [Norm.norm, norm, L1_norm] ; congr ; ext k ; congr ; ext v
+  have : iteratedDeriv k (-↑↑f) v = _ := iteratedDeriv_neg k f v ; rw [this]
+  simp
+
+noncomputable instance : PseudoMetricSpace (W1 n E) where
+  dist f g := ‖f - g‖
+  dist_self f := by simp only [sub_self, norm_zero]
+  dist_comm f g := by simp only [← norm_neg (f - g), neg_sub]
+  dist_triangle f g h := by simpa only [sub_add_sub_cancel] using norm_add_le (f - g) (g - h)
+  edist_dist f g := by simp only ; congr ; simp only [ge_iff_le, norm_nonneg, max_eq_left]
+
+-- Override the instances from `Subtype`
+noncomputable instance : UniformSpace (W1 n E) := PseudoMetricSpace.toUniformSpace
+noncomputable instance : TopologicalSpace (W1 n E) := UniformSpace.toTopologicalSpace
+
+noncomputable instance : SeminormedAddCommGroup (W1 n E) where
+
+@[simp] lemma norm_smul (c : ℝ) (f : W1 n E) : ‖c • f‖ = |c| * ‖f‖ := by
+  simp only [Norm.norm, norm, SetLike.val_smul, Finset.mul_sum]
+  apply Finset.sum_congr ; rfl ; intro k hk
+  rw [iteratedDeriv_const_smul_apply _ _ (f.1.2.of_le (by simp at hk ⊢ ; omega))]
+  simp [L1_norm, _root_.norm_smul, integral_mul_left]
+
+noncomputable instance : NormedSpace ℝ (W1 n E) where
+  norm_smul_le c f := by simp only [norm_smul, Real.norm_eq_abs, le_refl]
 
 lemma approx0 (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
     Tendsto (fun R ↦ norm1 (f - g.scale R • f)) atTop (𝓝 0) := by
@@ -522,13 +554,13 @@ lemma approx0 (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
     · simp only [bound] ; ring
     apply (_root_.norm_sub_le _ _).trans ; gcongr
     change ‖CS.scale g R x • f x‖ ≤ ‖g‖ * ‖f x‖
-    simp only [norm_smul, Real.norm_eq_abs] ; gcongr
+    simp only [_root_.norm_smul, Real.norm_eq_abs] ; gcongr
     simpa only [CS.scale, CD.scale, hR, ↓reduceDite, funscale, smul_eq_mul, Real.norm_eq_abs] using
       g.le_norm (R⁻¹ * x)
   have l3 : Integrable bound volume := (W1.integrable' f).norm.const_mul _
   have l4 : ∀ᵐ (a : ℝ), Tendsto (fun n ↦ F n a) atTop (𝓝 0) := by
     apply eventually_of_forall ; intro x
-    simpa only [hg, one_smul, sub_self, norm_zero] using
+    simpa only [hg, one_smul, sub_self, _root_.norm_zero] using
       (((g.tendsto_scale x).smul_const (f x)).const_sub (f x)).norm
   simpa only [integral_zero] using
     tendsto_integral_filter_of_dominated_convergence bound l1 l2 l3 l4
@@ -570,13 +602,17 @@ theorem W1_approximation (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
       simp only [sub_nonneg] ; norm_cast ; apply Nat.one_le_pow'
     convert_to (2 ^ (n + 1) - 1) * ‖R⁻¹ • g.deriv.scale R‖ * ‖f.of_succ‖ ≤
       (2 ^ (n + 1) - 1) * (R⁻¹ * ‖g‖) * ‖f‖ ; ring ; ring
-    gcongr ; apply norm_nonneg ; apply mul_nonneg ; linarith ; apply mul_nonneg ; positivity ; apply CS.norm_nonneg
+    gcongr ; apply mul_nonneg ; linarith ; apply mul_nonneg ; positivity ; apply CS.norm_nonneg
     · simp only [CS.norm_smul] ; gcongr ; simp only [CS.norm_nonneg] ; rw [abs_eq_self.mpr] ; positivity
       apply CS.norm_scale R hR g.deriv |>.trans
       apply CS.norm_deriv
     · apply norm_of_succ
 
 #print axioms W1_approximation
+
+theorem W1_approximation' (f : W1 n E) (g : CS n ℝ) (hg : g 0 = 1) :
+    Tendsto (fun R => g.scale R • f) atTop (𝓝 f) := by
+  rw [tendsto_iff_norm_sub_tendsto_zero] ; simpa only [norm_sub_rev _ f] using W1_approximation f g hg
 
 end W1
 
