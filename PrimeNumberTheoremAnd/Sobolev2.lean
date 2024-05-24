@@ -8,7 +8,7 @@ attribute [fun_prop] Integrable Integrable.norm Integrable.const_mul Integrable.
 attribute [fun_prop] AEStronglyMeasurable Continuous.aestronglyMeasurable
 attribute [fun_prop] HasCompactSupport HasCompactSupport.smul_right HasCompactSupport.smul_right HasCompactSupport.mul_left
 
-variable {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E] {k n : ℕ} {𝕜 : Type*} [RCLike 𝕜]
+variable {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E] {k n : ℕ} {R : ℝ} {𝕜 : Type*} [RCLike 𝕜]
 
 def CD_ (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : Subspace ℝ (ℝ → E) where
   carrier := {f | ContDiff ℝ n f}
@@ -16,7 +16,17 @@ def CD_ (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : Subsp
   add_mem' hf hg := hf.add hg
   smul_mem' c f hf := hf.const_smul c
 
-abbrev CD (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : Type _ := CD_ n E
+def CD (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : Type _ := CD_ n E
+
+instance : AddCommGroup (CD n E) := by simp only [CD] ; infer_instance
+noncomputable instance : Module ℝ (CD n E) := by simp only [CD] ; infer_instance
+
+@[ext] lemma CD.ext (f g : CD n E) (h : f.1 = g.1) : f = g := by
+  cases f ; cases g ; simp at * ; simp [h]
+
+@[simp] lemma CD.add_def {f g : CD n E} : (f + g).1 = f.1 + g.1 := rfl
+
+@[simp] lemma CD.smul_def {f : CD n E} : (R • f).1 = R • f.1 := rfl
 
 section lemmas
 
@@ -51,7 +61,7 @@ end lemmas
 
 namespace CD
 
-variable {f : CD n E} {R x v : ℝ}
+variable {f g : CD n E} {R x v : ℝ}
 
 instance : CoeFun (CD n E) (fun _ => ℝ → E) where coe f := f.1
 
@@ -121,7 +131,7 @@ noncomputable def iteratedDeriv_of_le {n : ℕ} ⦃k : ℕ⦄ (hk : k ≤ n) (f 
   simpa [iteratedDeriv_eq_iterate] using f.2.iterate_deriv' l k
 
 @[simp] lemma iteratedDeriv_of_le_zero (hk : k ≤ n) : iteratedDeriv_of_le hk (0 : CD n E) = 0 := by
-  simp [iteratedDeriv_of_le]
+  simp [iteratedDeriv_of_le] ; ext ; simp
 
 @[simp] lemma iteratedDeriv_of_le_add (hk : k ≤ n) (f g : CD n E) :
     iteratedDeriv_of_le hk (f + g) = iteratedDeriv_of_le hk f + iteratedDeriv_of_le hk g := by
@@ -166,6 +176,9 @@ def CS_ (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : Subsp
   smul_mem' c f hf := hf.smul_left
 
 abbrev CS (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : Type _ := CS_ n E
+
+instance : AddCommGroup (CS n E) := by simp only [CS] ; infer_instance
+noncomputable instance : Module ℝ (CS n E) := by simp only [CS] ; infer_instance
 
 namespace CS
 
@@ -329,13 +342,23 @@ def W1_ (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : Subsp
   add_mem' {f g} hf hg k hk := by simpa using (hf hk).add (hg hk)
   smul_mem' c f hf k hk := by simpa using hf hk |>.smul c
 
-abbrev W1 (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : Type _ := W1_ n E
+def W1 (n : ℕ) (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E] : Type _ := W1_ n E
+
+instance : AddCommGroup (W1 n E) := by simp only [W1] ; infer_instance
+noncomputable instance : Module ℝ (W1 n E) := by simp only [W1] ; infer_instance
+
+@[ext] lemma W1.ext (f g : W1 n E) (h : f.1 = g.1) : f = g := by
+  cases f ; cases g ; simp at * ; simp [h]
+
+@[simp] lemma W1.neg_def {f : W1 n E} : (-f).1.1 = -(f.1.1) := rfl
+
+@[simp] lemma W1.smul_def {f : W1 n E} : (R • f).1.1 = R • f.1.1 := rfl
 
 namespace W1
 
-instance : CoeFun (W1 n E) (fun _ => ℝ → E) where coe f := f
+instance : CoeFun (W1 n E) (fun _ => ℝ → E) where coe f := f.1
 
-instance : Coe (W1 n E) (CD n E) where coe f := f
+instance : Coe (W1 n E) (CD n E) where coe f := f.1
 
 @[fun_prop] lemma integrable' (f : W1 n E) : Integrable f := by
   exact f.prop (k := 0) (by simp)
@@ -442,7 +465,7 @@ lemma norm_mul0 (g : CS n ℝ) (f : W1 n E) : norm1 (g • f) ≤ ‖g‖ * norm
   · fun_prop
   · intro v ; simp [norm_smul] ; gcongr ; exact CS.le_norm g v
 
-def of_succ (f : W1 (n + 1) E) : W1 n E := ⟨f, fun k hk => f.2 (by omega)⟩
+def of_succ (f : W1 (n + 1) E) : W1 n E := ⟨f.1, fun k hk => f.2 (by omega)⟩
 
 instance : Coe (W1 (n + 1) E) (W1 n E) where coe := of_succ
 
@@ -512,7 +535,7 @@ theorem norm_mul (g : CS n ℝ) (f : W1 n E) : ‖g • f‖ ≤ (2 ^ (n + 1) - 
 
 @[simp] lemma norm_neg (f : W1 n E) : ‖-f‖ = ‖f‖ := by
   simp [Norm.norm, norm, L1_norm] ; congr ; ext k ; congr ; ext v
-  have : iteratedDeriv k (-↑↑f) v = _ := iteratedDeriv_neg k f v ; rw [this]
+  have : iteratedDeriv k (↑(-↑f)) v = _ := iteratedDeriv_neg k f v ; rw [this]
   simp
 
 noncomputable instance : PseudoMetricSpace (W1 n E) where
@@ -531,7 +554,7 @@ noncomputable instance : SeminormedAddCommGroup (W1 n E) where
 @[simp] lemma norm_smul (c : ℝ) (f : W1 n E) : ‖c • f‖ = |c| * ‖f‖ := by
   simp only [Norm.norm, norm, SetLike.val_smul, Finset.mul_sum]
   apply Finset.sum_congr ; rfl ; intro k hk
-  rw [iteratedDeriv_const_smul_apply _ _ (f.1.2.of_le (by simp at hk ⊢ ; omega))]
+  rw [smul_def, iteratedDeriv_const_smul_apply _ _ (f.1.2.of_le (by simp at hk ⊢ ; omega))]
   simp [L1_norm, _root_.norm_smul, integral_mul_left]
 
 noncomputable instance : NormedSpace ℝ (W1 n E) where
