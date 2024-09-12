@@ -53,7 +53,8 @@ end lemmas
 theorem fourierIntegral_self_add_deriv_deriv (f : W21) (u : ℝ) :
     (1 + u ^ 2) * 𝓕 f u = 𝓕 (fun u => f u - (1 / (4 * π ^ 2)) * deriv^[2] f u) u := by
   have l1 : Integrable (fun x => (((π : ℂ) ^ 2)⁻¹ * 4⁻¹) * deriv (deriv f) x) := by
-    apply Integrable.const_mul ; simpa [iteratedDeriv_succ] using f.integrable le_rfl
+    apply Integrable.const_mul
+    simpa [CD.iteratedDeriv_of_le, iteratedDeriv_succ] using f.integrable le_rfl
   have l4 : Differentiable ℝ f := f.differentiable
   have l5 : Differentiable ℝ (deriv f) := f.deriv.differentiable
   have l6 := Real.fourierIntegral_deriv f.deriv.integrable' l5 f.deriv.deriv.integrable'
