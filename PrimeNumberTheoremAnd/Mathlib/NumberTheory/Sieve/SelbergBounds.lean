@@ -147,7 +147,7 @@ theorem isMultiplicative {f : ArithmeticFunction ℝ} (hf : CompletelyMultiplica
 theorem apply_pow (f : ArithmeticFunction ℝ) (hf : CompletelyMultiplicative f) (a n : ℕ) :
     f (a^n) = f a ^ n := by
   induction n with
-  | zero => simp_rw [Nat.zero_eq, pow_zero, hf.1]
+  | zero => simp_rw [pow_zero, hf.1]
   | succ n' ih => simp_rw [pow_succ, hf.2, ih]
 
 end CompletelyMultiplicative
@@ -396,7 +396,7 @@ theorem selbergBoundingSum_ge_sum_div (s : SelbergSieve) (hP : ∀ p:ℕ, p.Prim
     · apply prod_primes_dvd_of_dvd <;> intro p hp
       · apply hP p $ Nat.prime_of_mem_primeFactors hp
         trans (m:ℝ)
-        · norm_cast; exact Nat.le_of_mem_primeFactors hp
+        · exact_mod_cast Nat.le_of_mem_primeFactors hp
         trans (Real.sqrt s.level)
         · exact hm.2
         apply sqrt_le_self s.level s.one_le_level
@@ -477,7 +477,9 @@ theorem boundingSum_ge_sum (s : SelbergSieve) (hnu : s.nu = (ζ : ArithmeticFunc
     simp
   · intro p hpp _
     rw[hnu]
-    simp
+    simp only [ArithmeticFunction.pdiv_apply, ArithmeticFunction.natCoe_apply,
+      ArithmeticFunction.zeta_apply, Nat.cast_ite, CharP.cast_eq_zero, Nat.cast_one,
+      ArithmeticFunction.id_apply]
     rw [if_neg, one_div]
     apply inv_lt_one; norm_cast
     exact hpp.one_lt
