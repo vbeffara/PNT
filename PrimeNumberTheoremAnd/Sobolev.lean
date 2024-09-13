@@ -31,6 +31,7 @@ lemma contDiff_ofReal : ContDiff ℝ ⊤ ofReal' := by
   refine contDiff_top_iff_deriv.mpr ⟨fun x => (key x).differentiableAt, ?_⟩
   simpa [key'] using contDiff_const
 
+omit [NormedSpace ℝ E] in
 lemma tendsto_funscale {f : ℝ → E} (hf : ContinuousAt f 0) (x : ℝ) :
     Tendsto (fun R => funscale f R x) atTop (𝓝 (f 0)) :=
   hf.tendsto.comp (by simpa using tendsto_inv_atTop_zero.mul_const x)
@@ -599,7 +600,10 @@ lemma approx_aux1 {f : ℝ → E} {g : ℝ → ℝ} (h1 : Integrable f) (h2 : �
   let F R x : E := funscale g R x • f x
   have l1 : ∀ᶠ R in atTop, AEStronglyMeasurable (F R) := by
     apply eventually_of_forall ; intro R
-    exact (h3.comp (by continuity)).aestronglyMeasurable.smul h1.1
+    refine AEStronglyMeasurable.smul ?_ h1.1
+    apply Continuous.aestronglyMeasurable
+    apply h3.comp
+    exact continuous_const_smul R⁻¹
   have l2 : ∀ᶠ R in atTop, ∀ᵐ x, ‖F R x‖ ≤ ‖f x‖ := by
     apply eventually_of_forall ; intro R ; apply eventually_of_forall ; intro x
     simp [F, funscale, norm_smul]
@@ -617,7 +621,12 @@ lemma approx_aux2 {f : ℝ → E} {g : ℝ → ℝ} (h1 : Integrable f)
   let F R x : ℝ := ‖(1 - funscale g R x) • f x‖
   have l1 : ∀ᶠ R in atTop, AEStronglyMeasurable (F R) := by
     apply eventually_of_forall ; intro R
-    exact ((aestronglyMeasurable_const.sub ((h3.comp (by continuity)).aestronglyMeasurable)).smul h1.1).norm
+    apply AEStronglyMeasurable.norm
+    apply AEStronglyMeasurable.smul ?_ h1.1
+    apply aestronglyMeasurable_const.sub
+    apply Continuous.aestronglyMeasurable
+    apply h3.comp
+    exact continuous_const_smul R⁻¹
   have l2 : ∀ᶠ R in atTop, ∀ᵐ x, ‖F R x‖ ≤ ‖f x‖ := by
     apply eventually_of_forall ; intro R ; apply eventually_of_forall ; intro x
     convert_to |1 - g (R⁻¹ * x)| * ‖f x‖ ≤ 1 * ‖f x‖ ; simp [F, funscale, norm_smul] ; simp
@@ -642,7 +651,6 @@ theorem W21_approximation (f : W21) (g : trunc) :
     filter_upwards [eventually_ne_atTop 0] with R hR ; simp [h, G, CS.scale, CD.scale, hR]
   refine piece_1.add (Tendsto.const_mul _ ?_) ; clear piece_1
 
-  -- Definitions
   let f' := f.deriv ; let f'' := f'.deriv
   let G' R := (G R).deriv ; let G'' R := (G' R).deriv
   let F R v := ‖- G'' R v * f v + 2 * -G' R v * f' v + h R v * f'' v‖
